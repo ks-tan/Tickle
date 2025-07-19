@@ -15,6 +15,8 @@ public static class Ticker
 
     public static void Update()
     {
+        if (!_floatProcess.IsRunning)
+            _floatProcess.Start();
         _floatProcess.Update();
         Debug.Log(_floatProcess.Value);
     }
@@ -50,7 +52,7 @@ public struct Process {
 
     public void Update()
     {
-        if (IsRunning) return;
+        if (!IsRunning) return;
         if (IsDone()) return;
         if (_elapsedTime < _duration)
             _elapsedTime += Time.deltaTime;
@@ -67,6 +69,7 @@ public struct LerpProcess<T>
     private Func<float, float> _easing;
     private Process _process;
 
+    public bool IsRunning => _process.IsRunning;
     public bool IsDone() => _process.IsDone();
     public void Start() => _process.Start();
     public void Stop() => _process.Stop();
