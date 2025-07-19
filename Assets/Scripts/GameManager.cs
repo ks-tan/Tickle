@@ -86,7 +86,7 @@ public struct LerpProcess<T>
     private static LerpProcessRunner _runner;
     private static int _rollingId;
     private static int _processCount;
-    private static LerpProcess<T>[] _processes = new LerpProcess<T>[64];
+    private static LerpProcess<T>[] _runningProcesses = new LerpProcess<T>[64];
 
     private static void SetupRunner()
     {
@@ -101,9 +101,9 @@ public struct LerpProcess<T>
     {
         for (int i = 0; i < _processCount; i++)
         {
-            if (_processes[i]._id == id)
+            if (_runningProcesses[i]._id == id)
             {
-                processRef = ref _processes[i];
+                processRef = ref _runningProcesses[i];
                 return true;
             }
         }
@@ -124,9 +124,9 @@ public struct LerpProcess<T>
         var isFound = TryGetProcess(process.Id, ref dummy);
         if (!isFound)
         {
-            if (_processCount >= _processes.Length)
-                Array.Resize(ref _processes, _processes.Length * 2);
-            _processes[_processCount++] = process;
+            if (_processCount >= _runningProcesses.Length)
+                Array.Resize(ref _runningProcesses, _runningProcesses.Length * 2);
+            _runningProcesses[_processCount++] = process;
         }
     }
 
@@ -155,8 +155,10 @@ public struct LerpProcess<T>
         var isFound = TryGetProcess(id, ref process);
         if (!isFound) return;
         // Remove from list by swapping with last element and reduce count
-        _processes[process.Id] = _processes[_processCount - 1];
+        _runningProcesses[process.Id] = _runningProcesses[_processCount - 1];
         _processCount--;
+        if (_processCount < _runningProcesses.Length / 3)
+            Array.Resize(ref _runningProcesses, _runningProcesses.Length / 2);
     }
 
     public static void Pause(ref LerpProcess<T> process)
@@ -177,13 +179,13 @@ public struct LerpProcess<T>
         int index = 0;
         while (index < _processCount)
         {
-            ref LerpProcess<T> proc = ref _processes[index];
+            ref LerpProcess<T> proc = ref _runningProcesses[index];
             proc.Update();
 
             if (proc._isDone)
             {
                 // Remove from list by swapping with last element and reduce count
-                _processes[index] = _processes[_processCount - 1];
+                _runningProcesses[index] = _runningProcesses[_processCount - 1];
                 _processCount--;
             }
             else index++;
