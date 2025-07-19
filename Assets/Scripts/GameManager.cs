@@ -40,8 +40,6 @@ public struct LerpProcess<T>
 
     public int Id => _id;
 
-    private static int _rollingId;
-
     public LerpProcess(Action<T> setter, T start, T end, float duration, Func<T, T, float, T> lerp, Func<float, float> easing, Action onComplete = null)
     {
         _id = _rollingId++;
@@ -73,23 +71,78 @@ public struct LerpProcess<T>
         _isDone = true;
     }
 
-    private static LerpProcess<T>[] _processes = new LerpProcess<T>[64];
+    private static int _rollingId;
     private static int _processCount;
+    private static LerpProcess<T>[] _processes = new LerpProcess<T>[64];
+
+    private static bool TryGetProcess(int id, ref LerpProcess<T> processRef)
+    {
+        for (int i = 0; i < _processCount; i++)
+        {
+            if (_processes[i]._id == id)
+            {
+                processRef = ref _processes[i];
+                return true;
+            }
+        }
+        return false;
+    }
 
     public static void Start(ref LerpProcess<T> process)
     {
-        Debug.Assert(!process._isRunning, "Process has already started");
         if (process._isRunning) return;
-
         process._isRunning = true;
         process._isDone = false;
         process._elapsedTime = 0;
-        if (_processCount >= _processes.Length)
-            Array.Resize(ref _processes, _processes.Length * 2);
-        _processes[_processCount++] = process;
+
+        LerpProcess<T> dummy = default;
+        var isFound = TryGetProcess(process.Id, ref dummy);
+        if (!isFound)
+        {
+            if (_processCount >= _processes.Length)
+                Array.Resize(ref _processes, _processes.Length * 2);
+            _processes[_processCount++] = process;
+        }
     }
 
-    // TODO: Implement stop and pause by process.Id
+    public static void Start(int id)
+    {
+        LerpProcess<T> process = default;
+        var isFound = TryGetProcess(id, ref process);
+        if (!isFound) return;
+        if (process._isRunning) return;
+        process._isRunning = true;
+        process._isDone = false;
+        process._elapsedTime = 0;
+    }
+
+    public static void Stop(ref LerpProcess<T> process)
+    {
+        Stop(process.Id);
+    }
+
+    public static void Stop(int id)
+    {
+        LerpProcess<T> process = default;
+        var isFound = TryGetProcess(id, ref process);
+        if (!isFound) return;
+        // Remove from list by swapping with last element and reduce count
+        _processes[process.Id] = _processes[_processCount - 1];
+        _processCount--;
+    }
+
+    public static void Pause(ref LerpProcess<T> process)
+    {
+        process._isRunning = false;
+    }
+
+    public static void Pause(int id)
+    {
+        LerpProcess<T> process = default;
+        var isFound = TryGetProcess(id, ref process);
+        if (!isFound) return;
+        process._isRunning = false;
+    }
 
     public static void UpdateAll()
     {
@@ -101,7 +154,7 @@ public struct LerpProcess<T>
 
             if (proc._isDone)
             {
-                // Swap with last element and reduce count
+                // Remove from list by swapping with last element and reduce count
                 _processes[index] = _processes[_processCount - 1];
                 _processCount--;
             }
