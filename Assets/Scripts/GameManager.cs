@@ -3,17 +3,14 @@ using UnityEngine;
 
 public class GameManager : MonoBehaviour
 {
-    private void Update()
+    private LerpProcess<float> _floatProcess;
+
+    private void Start()
     {
-        Ticker.Update();
+        _floatProcess = new LerpProcess<float>(0, 10, 10, Mathf.Lerp, (t) => t);
     }
-}
 
-public static class Ticker
-{
-    static LerpProcess<float> _floatProcess = new LerpProcess<float>(0, 10, 10, Mathf.Lerp, (t) => t);
-
-    public static void Update()
+    private void Update()
     {
         if (!_floatProcess.IsRunning)
             _floatProcess.Start();
@@ -22,71 +19,95 @@ public static class Ticker
     }
 }
 
-
-public struct Process {
-
+public struct Process 
+{
     private float _elapsedTime;
     private float _duration;
     private Action _onComplete;
-    public bool IsRunning { get; private set; }
-    public bool IsDone() => _elapsedTime >= _duration;
-    public float Progress => _elapsedTime / _duration;
+    private bool _isRunning;
+    private bool _isDone;
 
     public Process(float duration, Action onComplete = null)
     {
-        IsRunning = false;
         _elapsedTime = 0;
         _duration = duration;
         _onComplete = onComplete;
+        _isRunning = false;
+        _isDone = false;
     }
 
     public void Start()
     {
-        IsRunning = true;
+        _isRunning = true;
     }
 
     public void Stop()
     {
-        IsRunning = false;
+        _isRunning = false;
     }
 
     public void Update()
     {
-        if (!IsRunning) return;
-        if (IsDone()) return;
+        if (!_isRunning) return;
+        if (_isDone) return;
         if (_elapsedTime < _duration)
             _elapsedTime += Time.deltaTime;
         _onComplete?.Invoke();
+        _isDone = true;
     }
 }
 
 public struct LerpProcess<T>
 {
-    public T Value { get; private set; }
+    private T _value;
     private T _start;
     private T _end;
+    private float _elapsedTime;
+    private float _duration;
     private Func<T, T, float, T> _lerp;
     private Func<float, float> _easing;
-    private Process _process;
+    private Action _onComplete;
+    private bool _isRunning;
+    private bool _isDone;
 
-    public bool IsRunning => _process.IsRunning;
-    public bool IsDone() => _process.IsDone();
-    public void Start() => _process.Start();
-    public void Stop() => _process.Stop();
+    public T Value => _value;
+    public bool IsRunning => _isRunning;
 
     public LerpProcess(T start, T end, float duration, Func<T, T, float, T> lerp, Func<float, float> easing, Action onComplete = null)
     {
+        _value = start;
         _start = start;
         _end = end;
+        _elapsedTime = 0;
+        _duration = duration;
         _lerp = lerp;
         _easing = easing;
-        _process = new Process(duration, onComplete);
-        Value = start;
+        _onComplete = onComplete;
+        _isRunning = false;
+        _isDone = false;
+    }
+
+    public void Start()
+    {
+        _isRunning = true;
+    }
+
+    public void Stop()
+    {
+        _isRunning = false;
     }
 
     public void Update()
     {
-        Value = _lerp(_start, _end, _easing(_process.Progress));
-        _process.Update();
+        if (!_isRunning) return;
+        if (_isDone) return;
+        if (_elapsedTime < _duration)
+        {
+            _value = _lerp(_start, _end, _easing(_elapsedTime/_duration));
+            _elapsedTime += Time.deltaTime;
+            return;
+        }
+        _onComplete?.Invoke();
+        _isDone = true;
     }
 }
