@@ -9,12 +9,10 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         var floatProcess = new LerpProcess<float>(x => _value = x, 0, 10, 10, Mathf.Lerp, (t) => t);
-        floatProcess.Start();
-        LerpProcess<float>.Add(ref floatProcess);
+        LerpProcess<float>.Start(ref floatProcess);
 
         var vector3Process = new LerpProcess<Vector3>(x => _test = x, Vector3.zero, Vector3.one, 10, Vector3.Lerp, (t) => t);
-        vector3Process.Start();
-        LerpProcess<Vector3>.Add(ref vector3Process);
+        LerpProcess<Vector3>.Start(ref vector3Process);
     }
 
     private void Update()
@@ -56,16 +54,6 @@ public struct LerpProcess<T>
         _isDone = false;
     }
 
-    public void Start()
-    {
-        _isRunning = true;
-    }
-
-    public void Stop()
-    {
-        _isRunning = false;
-    }
-
     public void Update()
     {
         if (!_isRunning) return;
@@ -85,12 +73,20 @@ public struct LerpProcess<T>
     private static LerpProcess<T>[] _processes = new LerpProcess<T>[64];
     private static int _processCount;
 
-    public static void Add(ref LerpProcess<T> process)
+    public static void Start(ref LerpProcess<T> process)
     {
+        Debug.Assert(!process._isRunning, "Process has already started");
+        if (process.IsRunning) return;
+
+        process._isRunning = true;
+        process._isDone = false;
+        process._elapsedTime = 0;
         if (_processCount >= _processes.Length)
             Array.Resize(ref _processes, _processes.Length * 2);
         _processes[_processCount++] = process;
     }
+
+    // TODO: Implement stop and pause by process.Id
 
     public static void UpdateAll()
     {
