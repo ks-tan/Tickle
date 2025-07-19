@@ -45,7 +45,6 @@ public struct LerpProcess<T>
     public LerpProcess(Action<T> setter, T start, T end, float duration, Func<T, T, float, T> lerp, Func<float, float> easing, Action onComplete = null)
     {
         _id = _rollingId++;
-        Debug.Log("TEST: " + _rollingId);
         _setter = setter;
         _start = start;
         _end = end;
