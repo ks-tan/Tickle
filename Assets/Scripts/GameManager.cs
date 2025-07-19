@@ -26,6 +26,7 @@ public class GameManager : MonoBehaviour
 
 public struct LerpProcess<T>
 {
+    private int _id;
     private T _start;
     private T _end;
     private float _elapsedTime;
@@ -37,8 +38,14 @@ public struct LerpProcess<T>
     private bool _isRunning;
     private bool _isDone;
 
+    public int Id => _id;
+
+    private static int _rollingId;
+
     public LerpProcess(Action<T> setter, T start, T end, float duration, Func<T, T, float, T> lerp, Func<float, float> easing, Action onComplete = null)
     {
+        _id = _rollingId++;
+        Debug.Log("TEST: " + _rollingId);
         _setter = setter;
         _start = start;
         _end = end;
