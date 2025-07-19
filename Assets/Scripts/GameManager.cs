@@ -17,10 +17,22 @@ public class GameManager : MonoBehaviour
 
     private void Update()
     {
-        LerpProcess<float>.UpdateAll();
-        LerpProcess<Vector3>.UpdateAll();
         Debug.Log(_value);
         Debug.Log(_test);
+    }
+}
+
+public class LerpProcessRunner : MonoBehaviour
+{
+    private void Update()
+    {
+        // TODO: Add more types here if needed
+        LerpProcess<float>.UpdateAll();
+        LerpProcess<Color>.UpdateAll();
+        LerpProcess<Vector2>.UpdateAll();
+        LerpProcess<Vector3>.UpdateAll();
+        LerpProcess<Vector4>.UpdateAll();
+        LerpProcess<Quaternion>.UpdateAll();
     }
 }
 
@@ -71,9 +83,19 @@ public struct LerpProcess<T>
         _isDone = true;
     }
 
+    private static LerpProcessRunner _runner;
     private static int _rollingId;
     private static int _processCount;
     private static LerpProcess<T>[] _processes = new LerpProcess<T>[64];
+
+    private static void SetupRunner()
+    {
+        if (_runner != null) return;
+        var go = new GameObject("[CoroutineUtilityRunner]");
+        go.hideFlags = HideFlags.HideAndDontSave;
+        UnityEngine.Object.DontDestroyOnLoad(go);
+        _runner = go.AddComponent<LerpProcessRunner>();
+    }
 
     private static bool TryGetProcess(int id, ref LerpProcess<T> processRef)
     {
@@ -90,6 +112,9 @@ public struct LerpProcess<T>
 
     public static void Start(ref LerpProcess<T> process)
     {
+        if (_runner == null) 
+            SetupRunner();
+
         if (process._isRunning) return;
         process._isRunning = true;
         process._isDone = false;
@@ -107,6 +132,9 @@ public struct LerpProcess<T>
 
     public static void Start(int id)
     {
+        if (_runner == null) 
+            SetupRunner();
+
         LerpProcess<T> process = default;
         var isFound = TryGetProcess(id, ref process);
         if (!isFound) return;
