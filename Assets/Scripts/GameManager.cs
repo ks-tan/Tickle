@@ -37,9 +37,6 @@ public struct LerpProcess<T>
     private bool _isRunning;
     private bool _isDone;
 
-    public bool IsRunning => _isRunning;
-    public bool IsDone => _isDone;
-
     public LerpProcess(Action<T> setter, T start, T end, float duration, Func<T, T, float, T> lerp, Func<float, float> easing, Action onComplete = null)
     {
         _setter = setter;
@@ -76,7 +73,7 @@ public struct LerpProcess<T>
     public static void Start(ref LerpProcess<T> process)
     {
         Debug.Assert(!process._isRunning, "Process has already started");
-        if (process.IsRunning) return;
+        if (process._isRunning) return;
 
         process._isRunning = true;
         process._isDone = false;
@@ -96,7 +93,7 @@ public struct LerpProcess<T>
             ref LerpProcess<T> proc = ref _processes[index];
             proc.Update();
 
-            if (proc.IsDone)
+            if (proc._isDone)
             {
                 // Swap with last element and reduce count
                 _processes[index] = _processes[_processCount - 1];
