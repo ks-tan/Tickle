@@ -1,18 +1,19 @@
 using System;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
-public class GameManager : MonoBehaviour
+public unsafe class GameManager : MonoBehaviour
 {
     private float _value;
     private Vector3 _test;
 
     private void Start()
     {
-        var floatProcess = new LerpProcess<float>(x => _value = x, 0, 10, 10, Mathf.Lerp, (t) => t);
-        LerpProcess<float>.Start(ref floatProcess);
+        var floatProcess = new Lerp<float>(ref _value, 0, 10, 10);
+        Lerp<float>.Start(ref floatProcess);
 
-        var vector3Process = new LerpProcess<Vector3>(x => _test = x, Vector3.zero, Vector3.one, 10, Vector3.Lerp, (t) => t);
-        LerpProcess<Vector3>.Start(ref vector3Process);
+        var vector3Process = new Lerp<Vector3>(ref _test, Vector3.zero, Vector3.one, 10);
+        Lerp<Vector3>.Start(ref vector3Process);
     }
 
     private void Update()
@@ -22,49 +23,55 @@ public class GameManager : MonoBehaviour
     }
 }
 
-public class LerpProcessRunner : MonoBehaviour
+public class LerpRunner : MonoBehaviour
 {
     private void Update()
     {
         // TODO: Add more types here if needed
-        LerpProcess<float>.UpdateAll();
-        LerpProcess<Color>.UpdateAll();
-        LerpProcess<Vector2>.UpdateAll();
-        LerpProcess<Vector3>.UpdateAll();
-        LerpProcess<Vector4>.UpdateAll();
-        LerpProcess<Quaternion>.UpdateAll();
+        Lerp<float>.UpdateAll();
+        Lerp<Color>.UpdateAll();
+        Lerp<Vector2>.UpdateAll();
+        Lerp<Vector3>.UpdateAll();
+        Lerp<Vector4>.UpdateAll();
+        Lerp<Quaternion>.UpdateAll();
     }
 }
 
-public struct LerpProcess<T>
+public unsafe struct Lerp<T> where T : unmanaged
 {
     private int _id;
+    private T* _target;
     private T _start;
     private T _end;
     private float _elapsedTime;
     private float _duration;
-    private Func<T, T, float, T> _lerp;
-    private Func<float, float> _easing;
-    private Action<T> _setter;
+    private delegate*<T, T, float, T> _lerp;
+    private delegate*<float, float> _ease;
     private Action _onComplete;
     private bool _isRunning;
     private bool _isDone;
 
     public int Id => _id;
 
-    public LerpProcess(Action<T> setter, T start, T end, float duration, Func<T, T, float, T> lerp, Func<float, float> easing, Action onComplete = null)
+    public Lerp(ref T target, T start, T end, float duration, delegate*<float, float> ease = null, Action onComplete = null)
     {
         _id = _rollingId++;
-        _setter = setter;
+        _target = (T*)UnsafeUtility.AddressOf(ref target);
         _start = start;
         _end = end;
         _elapsedTime = 0;
         _duration = duration;
-        _lerp = lerp;
-        _easing = easing;
+        _ease = ease == null ? Ease.None : ease;
         _onComplete = onComplete;
         _isRunning = false;
         _isDone = false;
+
+        _lerp = (delegate*<T, T, float, T>)LerpType.Float;
+        if (typeof(T) == typeof(Color)) _lerp = (delegate*<T, T, float, T>)LerpType.Colour;
+        if (typeof(T) == typeof(Vector2)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec2;
+        if (typeof(T) == typeof(Vector3)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec3;
+        if (typeof(T) == typeof(Vector4)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec4;
+        if (typeof(T) == typeof(Quaternion)) _lerp = (delegate*<T, T, float, T>)LerpType.Quat;
     }
 
     public void Update()
@@ -73,20 +80,20 @@ public struct LerpProcess<T>
         if (_isDone) return;
         if (_elapsedTime < _duration)
         {
-            var value = _lerp(_start, _end, _easing(_elapsedTime/_duration));
-            _setter(value);
+            var value = _lerp(_start, _end, _ease(_elapsedTime/_duration));
+            *_target = value;
             _elapsedTime += Time.deltaTime;
             return;
         }
-        _setter(_end);
+        *_target = _end;
         _onComplete?.Invoke();
         _isDone = true;
     }
 
-    private static LerpProcessRunner _runner;
+    private static LerpRunner _runner;
     private static int _rollingId;
     private static int _processCount;
-    private static LerpProcess<T>[] _runningProcesses = new LerpProcess<T>[64];
+    private static Lerp<T>[] _runningProcesses = new Lerp<T>[64];
 
     private static void SetupRunner()
     {
@@ -94,10 +101,10 @@ public struct LerpProcess<T>
         var go = new GameObject("[CoroutineUtilityRunner]");
         go.hideFlags = HideFlags.HideAndDontSave;
         UnityEngine.Object.DontDestroyOnLoad(go);
-        _runner = go.AddComponent<LerpProcessRunner>();
+        _runner = go.AddComponent<LerpRunner>();
     }
 
-    private static bool TryGetProcess(int id, ref LerpProcess<T> processRef)
+    private static bool TryGetProcess(int id, ref Lerp<T> processRef)
     {
         for (int i = 0; i < _processCount; i++)
         {
@@ -110,7 +117,7 @@ public struct LerpProcess<T>
         return false;
     }
 
-    public static void Start(ref LerpProcess<T> process)
+    public static void Start(ref Lerp<T> process)
     {
         if (_runner == null) 
             SetupRunner();
@@ -120,7 +127,7 @@ public struct LerpProcess<T>
         process._isDone = false;
         process._elapsedTime = 0;
 
-        LerpProcess<T> dummy = default;
+        Lerp<T> dummy = default;
         var isFound = TryGetProcess(process.Id, ref dummy);
         if (!isFound)
         {
@@ -135,7 +142,7 @@ public struct LerpProcess<T>
         if (_runner == null) 
             SetupRunner();
 
-        LerpProcess<T> process = default;
+        Lerp<T> process = default;
         var isFound = TryGetProcess(id, ref process);
         if (!isFound) return;
         if (process._isRunning) return;
@@ -144,31 +151,24 @@ public struct LerpProcess<T>
         process._elapsedTime = 0;
     }
 
-    public static void Stop(ref LerpProcess<T> process)
+    public static void Stop(ref Lerp<T> process)
     {
-        Stop(process.Id);
+        RemoveProcess(process.Id);
     }
 
     public static void Stop(int id)
     {
-        LerpProcess<T> process = default;
-        var isFound = TryGetProcess(id, ref process);
-        if (!isFound) return;
-        // Remove from list by swapping with last element and reduce count
-        _runningProcesses[process.Id] = _runningProcesses[_processCount - 1];
-        _processCount--;
-        if (_processCount < _runningProcesses.Length / 3)
-            Array.Resize(ref _runningProcesses, _runningProcesses.Length / 2);
+        RemoveProcess(id);
     }
 
-    public static void Pause(ref LerpProcess<T> process)
+    public static void Pause(ref Lerp<T> process)
     {
         process._isRunning = false;
     }
 
     public static void Pause(int id)
     {
-        LerpProcess<T> process = default;
+        Lerp<T> process = default;
         var isFound = TryGetProcess(id, ref process);
         if (!isFound) return;
         process._isRunning = false;
@@ -179,16 +179,50 @@ public struct LerpProcess<T>
         int index = 0;
         while (index < _processCount)
         {
-            ref LerpProcess<T> proc = ref _runningProcesses[index];
+            ref Lerp<T> proc = ref _runningProcesses[index];
             proc.Update();
-
             if (proc._isDone)
-            {
-                // Remove from list by swapping with last element and reduce count
-                _runningProcesses[index] = _runningProcesses[_processCount - 1];
-                _processCount--;
-            }
+                RemoveProcess(index);
             else index++;
         }
     }
+
+    private static void RemoveProcess(int id)
+    {
+        int index = 0;
+
+        while (index < _processCount)
+        {
+            ref Lerp<T> proc = ref _runningProcesses[index];
+            if (proc.Id != id) continue;
+
+            // Remove from list by swapping with last element and reduce count
+            _runningProcesses[index] = _runningProcesses[_processCount - 1];
+            _processCount--;
+
+            // Resize array if needed
+            if (_processCount < _runningProcesses.Length / 3)
+                Array.Resize(ref _runningProcesses, _runningProcesses.Length / 2);
+
+            break;
+        }
+    }
+
+    private static unsafe class LerpType
+    {
+        // TODO: Add more types here if needed
+        public static delegate*<float, float, float, float> Float = &Mathf.Lerp;
+        public static delegate*<Color, Color, float, Color> Colour = &Color.Lerp;
+        public static delegate*<Vector2, Vector2, float, Vector2> Vec2 = &Vector2.Lerp;
+        public static delegate*<Vector3, Vector3, float, Vector3> Vec3 = &Vector3.Lerp;
+        public static delegate*<Vector4, Vector4, float, Vector4> Vec4 = &Vector4.Lerp;
+        public static delegate*<Quaternion, Quaternion, float, Quaternion> Quat = &Quaternion.Lerp;
+    }
+}
+
+public unsafe static class Ease
+{
+    // TODO: Add more easing functions
+    private static float Default(float t) => t;
+    public static delegate*<float, float> None = &Default;
 }
