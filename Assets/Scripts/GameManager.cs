@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
@@ -9,11 +10,8 @@ public unsafe class GameManager : MonoBehaviour
 
     private void Start()
     {
-        var floatProcess = new Lerp<float>(ref _value, 0, 10, 10);
-        Lerp<float>.Start(ref floatProcess);
-
-        var vector3Process = new Lerp<Vector3>(ref _test, Vector3.zero, Vector3.one, 10);
-        Lerp<Vector3>.Start(ref vector3Process);
+        Lerp<float>.Start(this, ref _value, start: 0, end: 10, duration: 10);
+        Lerp<Vector3>.Start(this, ref _test, start: Vector3.zero, end: Vector3.one, duration: 10);
     }
 
     private void Update()
@@ -39,22 +37,26 @@ public class LerpRunner : MonoBehaviour
 
 public unsafe struct Lerp<T> where T : unmanaged
 {
-    private int _id;
-    private T* _target;
-    private T _start;
-    private T _end;
+    // Note: Target owner should be a reference type for there to be no boxing
+    private readonly object _targetOwner;
+    private readonly int _id;
+    private readonly T* _target;
+    private readonly T _start;
+    private readonly T _end;
+    private readonly float _duration;
+    private readonly delegate*<T, T, float, T> _lerp;
+    private readonly delegate*<float, float> _ease;
+    private readonly Action _onComplete;
+    
     private float _elapsedTime;
-    private float _duration;
-    private delegate*<T, T, float, T> _lerp;
-    private delegate*<float, float> _ease;
-    private Action _onComplete;
     private bool _isRunning;
     private bool _isDone;
 
     public int Id => _id;
 
-    public Lerp(ref T target, T start, T end, float duration, delegate*<float, float> ease = null, Action onComplete = null)
+    public Lerp(object targetOwner, ref T target, T start, T end, float duration, delegate*<float, float> ease = null, Action onComplete = null)
     {
+        _targetOwner = targetOwner;
         _id = _rollingId++;
         _target = (T*)UnsafeUtility.AddressOf(ref target);
         _start = start;
@@ -74,10 +76,16 @@ public unsafe struct Lerp<T> where T : unmanaged
         if (typeof(T) == typeof(Quaternion)) _lerp = (delegate*<T, T, float, T>)LerpType.Quat;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Update()
     {
         if (!_isRunning) return;
         if (_isDone) return;
+        if (_targetOwner == null || _target == null)
+        {
+            _isDone = true;
+            return;
+        }
         if (_elapsedTime < _duration)
         {
             var value = _lerp(_start, _end, _ease(_elapsedTime/_duration));
@@ -117,6 +125,13 @@ public unsafe struct Lerp<T> where T : unmanaged
         return false;
     }
 
+    public static int Start(object targetOwner, ref T target, T start, T end, float duration, delegate*<float, float> ease = null, Action onComplete = null)
+    {
+        var process = new Lerp<T>(targetOwner, ref target, start, end, duration, ease, onComplete);
+        Start(ref process);
+        return process.Id;
+    }
+
     public static void Start(ref Lerp<T> process)
     {
         if (_runner == null) 
@@ -145,20 +160,32 @@ public unsafe struct Lerp<T> where T : unmanaged
         Lerp<T> process = default;
         var isFound = TryGetProcess(id, ref process);
         if (!isFound) return;
-        if (process._isRunning) return;
         process._isRunning = true;
         process._isDone = false;
         process._elapsedTime = 0;
     }
 
+    public static void Resume(int id)
+    {
+        Lerp<T> process = default;
+        var isFound = TryGetProcess(id, ref process);
+        if (!isFound) return;
+        process._isRunning = true;
+    }
+
+    public static void Resume(ref Lerp<T> process)
+    {
+        process._isRunning = true;
+    }
+
     public static void Stop(ref Lerp<T> process)
     {
-        RemoveProcess(process.Id);
+        RemoveProcessAt(process.Id);
     }
 
     public static void Stop(int id)
     {
-        RemoveProcess(id);
+        RemoveProcessAt(id);
     }
 
     public static void Pause(ref Lerp<T> process)
@@ -182,12 +209,12 @@ public unsafe struct Lerp<T> where T : unmanaged
             ref Lerp<T> proc = ref _runningProcesses[index];
             proc.Update();
             if (proc._isDone)
-                RemoveProcess(index);
+                RemoveProcessAt(index);
             else index++;
         }
     }
 
-    private static void RemoveProcess(int id)
+    private static void RemoveProcessAt(int id)
     {
         int index = 0;
 
