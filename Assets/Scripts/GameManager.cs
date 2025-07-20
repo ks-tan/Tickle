@@ -12,6 +12,7 @@ public unsafe class GameManager : MonoBehaviour
     {
         Lerp<float>.Start(this, ref _value, start: 0, end: 10, duration: 10);
         Lerp<Vector3>.Start(this, ref _test, start: Vector3.zero, end: Vector3.one, duration: 10);
+
     }
 
     private void Update()
@@ -46,15 +47,14 @@ public unsafe struct Lerp<T> where T : unmanaged
     private readonly float _duration;
     private readonly delegate*<T, T, float, T> _lerp;
     private readonly delegate*<float, float> _ease;
-    private readonly Action _onComplete;
-    
+
     private float _elapsedTime;
     private bool _isRunning;
     private bool _isDone;
 
     public int Id => _id;
 
-    public Lerp(object targetOwner, ref T target, T start, T end, float duration, delegate*<float, float> ease = null, Action onComplete = null)
+    public Lerp(object targetOwner, ref T target, T start, T end, float duration, delegate*<float, float> ease = null)
     {
         _targetOwner = targetOwner;
         _id = _rollingId++;
@@ -64,7 +64,6 @@ public unsafe struct Lerp<T> where T : unmanaged
         _elapsedTime = 0;
         _duration = duration;
         _ease = ease == null ? Ease.None : ease;
-        _onComplete = onComplete;
         _isRunning = false;
         _isDone = false;
 
@@ -94,7 +93,6 @@ public unsafe struct Lerp<T> where T : unmanaged
             return;
         }
         *_target = _end;
-        _onComplete?.Invoke();
         _isDone = true;
     }
 
@@ -125,9 +123,9 @@ public unsafe struct Lerp<T> where T : unmanaged
         return false;
     }
 
-    public static int Start(object targetOwner, ref T target, T start, T end, float duration, delegate*<float, float> ease = null, Action onComplete = null)
+    public static int Start(object targetOwner, ref T target, T start, T end, float duration, delegate*<float, float> ease = null)
     {
-        var process = new Lerp<T>(targetOwner, ref target, start, end, duration, ease, onComplete);
+        var process = new Lerp<T>(targetOwner, ref target, start, end, duration, ease);
         Start(ref process);
         return process.Id;
     }
