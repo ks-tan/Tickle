@@ -5,20 +5,21 @@ using UnityEngine;
 
 public unsafe class GameManager : MonoBehaviour
 {
-    private float _value;
-    private Vector3 _test;
+    private float[] _values = new float[10000];
 
     private void Start()
     {
-        Lerp<float>.Start(this, ref _value, start: 0, end: 10, duration: 10);
-        Lerp<Vector3>.Start(this, ref _test, start: Vector3.zero, end: Vector3.one, duration: 10);
-
+        for (int i = 0; i < 10000; i++)
+        {
+            _values[i] = 0;
+            Lerp<float>.Start(this, ref _values[i], start: 0, end: 10, duration: 10);
+        }
     }
 
     private void Update()
     {
-        Debug.Log(_value);
-        Debug.Log(_test);
+        Debug.Log(_values[100]);
+        Debug.Log(Time.deltaTime + "seconds, " + (1 / Time.deltaTime) + " fps");
     }
 }
 
@@ -163,27 +164,17 @@ public unsafe struct Lerp<T> where T : unmanaged
         process._elapsedTime = 0;
     }
 
+    public static void Resume(ref Lerp<T> process)
+    {
+        process._isRunning = true;
+    }
+
     public static void Resume(int id)
     {
         Lerp<T> process = default;
         var isFound = TryGetProcess(id, ref process);
         if (!isFound) return;
         process._isRunning = true;
-    }
-
-    public static void Resume(ref Lerp<T> process)
-    {
-        process._isRunning = true;
-    }
-
-    public static void Stop(ref Lerp<T> process)
-    {
-        RemoveProcessAt(process.Id);
-    }
-
-    public static void Stop(int id)
-    {
-        RemoveProcessAt(id);
     }
 
     public static void Pause(ref Lerp<T> process)
@@ -199,38 +190,43 @@ public unsafe struct Lerp<T> where T : unmanaged
         process._isRunning = false;
     }
 
-    public static void UpdateAll()
+    public static void Stop(ref Lerp<T> process)
     {
-        int index = 0;
-        while (index < _processCount)
-        {
-            ref Lerp<T> proc = ref _runningProcesses[index];
-            proc.Update();
-            if (proc._isDone)
-                RemoveProcessAt(index);
-            else index++;
-        }
+        process._isDone = true;
     }
 
-    private static void RemoveProcessAt(int id)
+    public static void Stop(int id)
     {
-        int index = 0;
+        Lerp<T> process = default;
+        var isFound = TryGetProcess(id, ref process);
+        if (!isFound) return;
+        process._isDone = true;
+    }
 
+    public static void UpdateAll()
+    {
+        for(int i = 0; i < _processCount; i++)
+            _runningProcesses[i].Update();
+
+        int index = 0;
         while (index < _processCount)
         {
             ref Lerp<T> proc = ref _runningProcesses[index];
-            if (proc.Id != id) continue;
+
+            if (!proc._isDone)
+            {
+                index++;
+                continue;
+            }
 
             // Remove from list by swapping with last element and reduce count
             _runningProcesses[index] = _runningProcesses[_processCount - 1];
             _processCount--;
-
-            // Resize array if needed
-            if (_processCount < _runningProcesses.Length / 3)
-                Array.Resize(ref _runningProcesses, _runningProcesses.Length / 2);
-
-            break;
         }
+
+        // Resize array if needed
+        if (_processCount < _runningProcesses.Length / 3)
+            Array.Resize(ref _runningProcesses, _runningProcesses.Length / 2);
     }
 
     private static unsafe class LerpType
