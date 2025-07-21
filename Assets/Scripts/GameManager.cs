@@ -222,6 +222,7 @@ public unsafe struct Lerp<T> where T : unmanaged
         _runner = go.AddComponent<LerpRunner>();
     }
 
+    // TODO: Need a faster way or this could lead to O(n^2)
     public static bool TryGetProcess(int id, ref Lerp<T> processRef)
     {
         for (int i = 0; i < _processCount; i++)
