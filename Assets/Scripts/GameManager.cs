@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -49,6 +50,81 @@ public unsafe class GameManager : MonoBehaviour
     }
 }
 
+public unsafe class Tickle<T> where T : unmanaged
+{
+    private int _lerpId;
+    private T _value;
+    private Action<T> _setter;
+    private Action _onComplete;
+
+    public Tickle(Action<T> setter, T start, T end, float duration, delegate*<float, float> ease, Action oncomplete)
+    {
+        var process = new Lerp<T>(this, ref _value, start, end, duration, ease);
+        _lerpId = process.Id;
+        _value = start;
+        _setter = setter;
+        _onComplete = oncomplete;
+    }
+
+    public void Start()
+    {
+        // TODO: We need to include Lerp<T> static function to get "created" processes
+        // and remove from "created" processes when Tickle instance is finalized.
+
+        //if (_runner == null) 
+        //    SetupRunner();
+        //Lerp<T>.Start(_lerpId);
+        //if (!_tickles.Contains(this))
+        //    _tickles.Add(this);
+    }
+
+    public bool IsDone()
+    {
+        Lerp<T> process = default;
+        if (!Lerp<T>.TryGetProcess(_lerpId, ref process)) 
+            return true;
+        return process.IsDone;
+    }
+
+    private static TickleRunner _runner;
+    private static List<Tickle<T>> _tickles;
+
+    private static void SetupRunner()
+    {
+        if (_runner != null) return;
+        var go = new GameObject("[TickleRunner]");
+        go.hideFlags = HideFlags.HideAndDontSave;
+        UnityEngine.Object.DontDestroyOnLoad(go);
+        _runner = go.AddComponent<TickleRunner>();
+    }
+
+    public static void UpdateAll()
+    {
+        for(int i = _tickles.Count - 1; i >= 0; i--)
+        {
+            var tickle = _tickles[i];
+            tickle._setter(tickle._value);
+            if (!tickle.IsDone()) continue;
+            tickle._onComplete?.Invoke();   
+            _tickles.Remove(tickle);
+        }
+    }
+}
+
+public class TickleRunner : MonoBehaviour
+{
+    private void Update()
+    {
+        // TODO: Add more types here if needed
+        Tickle<float>.UpdateAll();
+        Tickle<Color>.UpdateAll();
+        Tickle<Vector2>.UpdateAll();
+        Tickle<Vector3>.UpdateAll();
+        Tickle<Vector4>.UpdateAll();
+        Tickle<Quaternion>.UpdateAll();
+    }
+}
+
 public class LerpRunner : MonoBehaviour
 {
     private void Update()
@@ -80,6 +156,7 @@ public unsafe struct Lerp<T> where T : unmanaged
     private bool _isDone;
 
     public int Id => _id;
+    public bool IsDone => _isDone;
 
     public Lerp(object targetOwner, ref T target, T start, T end, float duration, delegate*<float, float> ease = null)
     {
@@ -126,18 +203,26 @@ public unsafe struct Lerp<T> where T : unmanaged
     private static LerpRunner _runner;
     private static int _rollingId;
     private static int _processCount;
+
+    // TODO: We can use NativeArrays instead to access elements to make things
+    // burst/jobs compatible. However, we will have to make Lerp<T> struct to be
+    // a unmanaged type, which means all its members have to be value types only.
+    // Currently, 'object _targetOwner' is the only member that is a reference
+    // type and hence stopping Lerp<T> from being unmanaged. We can implement an
+    // object tracker that assigns an ID to each object in a map (or some other
+    // similar solutions).
     private static Lerp<T>[] _runningProcesses = new Lerp<T>[64];
 
     private static void SetupRunner()
     {
         if (_runner != null) return;
-        var go = new GameObject("[CoroutineUtilityRunner]");
+        var go = new GameObject("[LerpRunner]");
         go.hideFlags = HideFlags.HideAndDontSave;
         UnityEngine.Object.DontDestroyOnLoad(go);
         _runner = go.AddComponent<LerpRunner>();
     }
 
-    private static bool TryGetProcess(int id, ref Lerp<T> processRef)
+    public static bool TryGetProcess(int id, ref Lerp<T> processRef)
     {
         for (int i = 0; i < _processCount; i++)
         {
