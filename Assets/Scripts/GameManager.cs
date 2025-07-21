@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -9,6 +10,18 @@ public unsafe class GameManager : MonoBehaviour
 
     private void Start()
     {
+        LerpTest();
+    }
+
+    private void Update()
+    {
+        Debug.Log(_values[100]);
+        Debug.Log(Time.deltaTime + "seconds, " + (1 / Time.deltaTime) + " fps");
+    }
+
+    // 150 fps
+    private void LerpTest()
+    {
         for (int i = 0; i < 10000; i++)
         {
             _values[i] = 0;
@@ -16,10 +29,23 @@ public unsafe class GameManager : MonoBehaviour
         }
     }
 
-    private void Update()
+    // 60 fps
+    private void CoroutineTest()
     {
-        Debug.Log(_values[100]);
-        Debug.Log(Time.deltaTime + "seconds, " + (1 / Time.deltaTime) + " fps");
+        for (int i = 0; i < 10000; i++)
+            StartCoroutine(routine(i, 0, 10, 10));
+
+        IEnumerator routine(int index, float start, float end, float duration)
+        {
+            var elapsedTime = 0f;
+            while (elapsedTime < duration) 
+            {
+                _values[index] = Mathf.Lerp(start, end, elapsedTime/duration);
+                yield return null;
+                elapsedTime += Time.deltaTime;
+            }
+            _values[index] = end;
+        }
     }
 }
 
