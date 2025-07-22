@@ -4,6 +4,7 @@ using UnityEngine;
 using System.Collections.Generic;
 using System.Linq;
 using Unity.Collections;
+using System;
 
 namespace Tickle.Engine
 {
@@ -38,7 +39,6 @@ namespace Tickle.Engine
         public T _start;
         public T _end;
         public float _duration;
-        public delegate*<T, T, float, T> _lerp; // TODO: Turn this to enum, or this remains managed in the eyes of Mono
         public delegate*<float, float> _ease; // TODO: Turn this to enum, or this remains managed in the eyes of Mono
 
         public float _elapsedTime;
@@ -57,13 +57,6 @@ namespace Tickle.Engine
             _isRunning = false;
             _isDone = false;
             _targetOwnerHash = targetOwnerHash;
-
-            _lerp = (delegate*<T, T, float, T>)LerpType.Float;
-            if (typeof(T) == typeof(Color)) _lerp = (delegate*<T, T, float, T>)LerpType.Colour;
-            if (typeof(T) == typeof(Vector2)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec2;
-            if (typeof(T) == typeof(Vector3)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec3;
-            if (typeof(T) == typeof(Vector4)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec4;
-            if (typeof(T) == typeof(Quaternion)) _lerp = (delegate*<T, T, float, T>)LerpType.Quat;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -79,7 +72,7 @@ namespace Tickle.Engine
             }
             if (_elapsedTime < _duration)
             {
-                var value = _lerp(_start, _end, _ease(_elapsedTime / _duration));
+                var value = LerpManager<T>.ApplyLerp(_start, _end, _ease(_elapsedTime / _duration));
                 *_target = value;
                 _elapsedTime += Time.deltaTime;
                 return;
@@ -103,7 +96,7 @@ namespace Tickle.Engine
             if (_runner != null) return;
             var go = new GameObject("[LerpRunner]");
             go.hideFlags = HideFlags.HideAndDontSave;
-            Object.DontDestroyOnLoad(go);
+            UnityEngine.Object.DontDestroyOnLoad(go);
             _runner = go.AddComponent<LerpRunner>();
         }
 
@@ -242,6 +235,17 @@ namespace Tickle.Engine
             NativeArray<Lerp<T>>.Copy(_runningProcesses, newArray, elementsToCopy);
             _runningProcesses.Dispose();
             _runningProcesses = newArray;
+        }
+
+        public static T ApplyLerp(T a, T b, float t)
+        {
+            if (typeof(T) == typeof(float)) return (T)(object)Mathf.Lerp((float)(object)a, (float)(object)b, t);
+            if (typeof(T) == typeof(Color)) return (T)(object)Color.Lerp((Color)(object)a, (Color)(object)b, t);
+            if (typeof(T) == typeof(Vector2)) return (T)(object)Vector2.Lerp((Vector2)(object)a, (Vector2)(object)b, t);
+            if (typeof(T) == typeof(Vector3)) return (T)(object)Vector3.Lerp((Vector3)(object)a, (Vector3)(object)b, t);
+            if (typeof(T) == typeof(Vector4)) return (T)(object)Vector4.Lerp((Vector4)(object)a, (Vector4)(object)b, t);
+            if (typeof(T) == typeof(Quaternion)) return (T)(object)Quaternion.Lerp((Quaternion)(object)a, (Quaternion)(object)b, t);
+            throw new NotSupportedException();
         }
     }
 
