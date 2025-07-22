@@ -3,6 +3,7 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Unity.Collections;
 using System;
+using JetBrains.Annotations;
 
 namespace Tickle.Engine
 {
@@ -19,12 +20,12 @@ namespace Tickle.Engine
             LerpManager<Vector4>.UpdateAll();
             LerpManager<Quaternion>.UpdateAll();
 
-            LerpManager<float>.CompactProcessesArray();
-            LerpManager<Color>.CompactProcessesArray();
-            LerpManager<Vector2>.CompactProcessesArray();
-            LerpManager<Vector3>.CompactProcessesArray();
-            LerpManager<Vector4>.CompactProcessesArray();
-            LerpManager<Quaternion>.CompactProcessesArray();
+            LerpManager<float>.CompactRunningProcessArray();
+            LerpManager<Color>.CompactRunningProcessArray();
+            LerpManager<Vector2>.CompactRunningProcessArray();
+            LerpManager<Vector3>.CompactRunningProcessArray();
+            LerpManager<Vector4>.CompactRunningProcessArray();
+            LerpManager<Quaternion>.CompactRunningProcessArray();
         }
     }
 
@@ -75,8 +76,9 @@ namespace Tickle.Engine
     {
         private static LerpRunner _runner;
         private static int _rollingId;
-        private static int _processCount;
         private static delegate*<T, T, float, T> _lerp;
+
+        private static int _runningProcessCount;
         private static NativeArray<Lerp<T>> _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
 
         private static void SetupRunner()
@@ -96,11 +98,11 @@ namespace Tickle.Engine
             else if (typeof(T) == typeof(Quaternion)) _lerp = (delegate*<T, T, float, T>)LerpType.Quat;
         }
 
-        public static bool TryGetRunningProcess(int id, ref Lerp<T> processRef)
+        private static bool TryGetProcess(int id, NativeArray<Lerp<T>> array, int count, ref Lerp<T> processRef)
         {
-            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
+            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(array);
 
-            for (int i = 0; i < _processCount; i++)
+            for (int i = 0; i < count; i++)
             {
                 if (ptr[i]._id == id)
                 {
@@ -109,6 +111,11 @@ namespace Tickle.Engine
                 }
             }
             return false;
+        }
+
+        public static bool TryGetRunningProcess(int id, ref Lerp<T> processRef)
+        {
+            return TryGetProcess(id, _runningProcesses, _runningProcessCount, ref processRef);
         }
 
         public static int Start(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
@@ -132,9 +139,9 @@ namespace Tickle.Engine
             var isFound = TryGetRunningProcess(process._id, ref dummy);
             if (!isFound)
             {
-                if (_processCount >= _runningProcesses.Length)
-                    ResizeProcessesArray(_runningProcesses.Length * 2);
-                _runningProcesses[_processCount++] = process;
+                if (_runningProcessCount >= _runningProcesses.Length)
+                    ResizeRunningProcessesArray(_runningProcesses.Length * 2);
+                _runningProcesses[_runningProcessCount++] = process;
             }
         }
 
@@ -194,11 +201,11 @@ namespace Tickle.Engine
         {
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
 
-            for (int i = 0; i < _processCount; i++)
+            for (int i = 0; i < _runningProcessCount; i++)
                 ptr[i].Update();
 
             int index = 0;
-            while (index < _processCount)
+            while (index < _runningProcessCount)
             {
                 if (!ptr[index]._isDone)
                 {
@@ -207,31 +214,35 @@ namespace Tickle.Engine
                 }
 
                 // Remove from list by swapping with last element and reduce count
-                ptr[index] = ptr[_processCount - 1];
-                _processCount--;
+                ptr[index] = ptr[_runningProcessCount - 1];
+                _runningProcessCount--;
             }
         }
 
-        public static void CompactProcessesArray()
+        public static void CompactRunningProcessArray()
         {
-            if (_processCount > _runningProcesses.Length / 3) return;
-            ResizeProcessesArray(_runningProcesses.Length / 2);
+            if (_runningProcessCount > _runningProcesses.Length / 3) return;
+            ResizeRunningProcessesArray(_runningProcesses.Length / 2);
         }
 
-        public static void ResizeProcessesArray(int newSize)
+        private static void ResizeRunningProcessesArray(int newSize)
+        {
+            ResizeProcessesArray(newSize, ref _runningProcesses, _runningProcessCount);
+        }
+
+        private static void ResizeProcessesArray(int newSize, ref NativeArray<Lerp<T>> array, int elementsToCopy)
         {
             var newArray = new NativeArray<Lerp<T>>(newSize, Allocator.Persistent, NativeArrayOptions.ClearMemory);
-            int elementsToCopy = _processCount;
-            NativeArray<Lerp<T>>.Copy(_runningProcesses, newArray, elementsToCopy);
-            _runningProcesses.Dispose();
-            _runningProcesses = newArray;
+            NativeArray<Lerp<T>>.Copy(array, newArray, elementsToCopy);
+            array.Dispose();
+            array = newArray;
         }
 
         // This cleans up leaky memory caused by processes which the owner for _target has been destroyed
         public static void CancelAllForTarget(void* target)
         {
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
-            for (int i = 0; i < _processCount; i++)
+            for (int i = 0; i < _runningProcessCount; i++)
                 if (ptr[i]._target == target)
                     ptr[i]._isDone = true;
         }
@@ -256,7 +267,7 @@ namespace Tickle.Engine
             if (_runningProcesses.IsCreated)
                 _runningProcesses.Dispose(); // Release NativeArray memory
             _runner = null; // Remove reference to GameObject
-            _processCount = 0; // Reset active lerps
+            _runningProcessCount = 0; // Reset active lerps
             _rollingId = 0; // Reset ID counter
         }
     }
