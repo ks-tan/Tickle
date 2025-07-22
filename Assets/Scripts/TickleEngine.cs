@@ -30,7 +30,6 @@ namespace Tickle.Engine
 
     public unsafe struct Lerp<T> where T : unmanaged
     {
-        // Note: Target owner should be a reference type for there to be no boxing
         public int _id;
         public T* _target;
         public T _start;
@@ -77,7 +76,7 @@ namespace Tickle.Engine
         private static LerpRunner _runner;
         private static int _rollingId;
         private static int _processCount;
-
+        private static delegate*<T, T, float, T> _lerp;
         private static NativeArray<Lerp<T>> _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
 
         private static void SetupRunner()
@@ -87,9 +86,17 @@ namespace Tickle.Engine
             go.hideFlags = HideFlags.HideAndDontSave;
             UnityEngine.Object.DontDestroyOnLoad(go);
             _runner = go.AddComponent<LerpRunner>();
+
+            // TODO: Add more types here if needed
+            if (typeof(T) == typeof(float)) _lerp = (delegate*<T, T, float, T>)LerpType.Float;
+            else if (typeof(T) == typeof(Color)) _lerp = (delegate*<T, T, float, T>)LerpType.Colour;
+            else if (typeof(T) == typeof(Vector2)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec2;
+            else if (typeof(T) == typeof(Vector3)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec3;
+            else if (typeof(T) == typeof(Vector3)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec4;
+            else if (typeof(T) == typeof(Quaternion)) _lerp = (delegate*<T, T, float, T>)LerpType.Quat;
         }
 
-        public static bool TryGetProcess(int id, ref Lerp<T> processRef)
+        public static bool TryGetRunningProcess(int id, ref Lerp<T> processRef)
         {
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
 
@@ -122,7 +129,7 @@ namespace Tickle.Engine
             process._elapsedTime = 0;
 
             Lerp<T> dummy = default;
-            var isFound = TryGetProcess(process._id, ref dummy);
+            var isFound = TryGetRunningProcess(process._id, ref dummy);
             if (!isFound)
             {
                 if (_processCount >= _runningProcesses.Length)
@@ -137,7 +144,7 @@ namespace Tickle.Engine
                 SetupRunner();
 
             Lerp<T> process = default;
-            var isFound = TryGetProcess(id, ref process);
+            var isFound = TryGetRunningProcess(id, ref process);
             if (!isFound) return;
             process._isRunning = true;
             process._isDone = false;
@@ -152,7 +159,7 @@ namespace Tickle.Engine
         public static void Resume(int id)
         {
             Lerp<T> process = default;
-            var isFound = TryGetProcess(id, ref process);
+            var isFound = TryGetRunningProcess(id, ref process);
             if (!isFound) return;
             process._isRunning = true;
         }
@@ -165,7 +172,7 @@ namespace Tickle.Engine
         public static void Pause(int id)
         {
             Lerp<T> process = default;
-            var isFound = TryGetProcess(id, ref process);
+            var isFound = TryGetRunningProcess(id, ref process);
             if (!isFound) return;
             process._isRunning = false;
         }
@@ -178,7 +185,7 @@ namespace Tickle.Engine
         public static void Stop(int id)
         {
             Lerp<T> process = default;
-            var isFound = TryGetProcess(id, ref process);
+            var isFound = TryGetRunningProcess(id, ref process);
             if (!isFound) return;
             process._isDone = true;
         }
@@ -220,40 +227,51 @@ namespace Tickle.Engine
             _runningProcesses = newArray;
         }
 
-        public static T ApplyLerp(T a, T b, float t)
+        // This cleans up leaky memory caused by processes which the owner for _target has been destroyed
+        public static void CancelAllForTarget(void* target)
         {
-            if (typeof(T) == typeof(float)) return (T)(object)Mathf.Lerp((float)(object)a, (float)(object)b, t);
-            if (typeof(T) == typeof(Color)) return (T)(object)Color.Lerp((Color)(object)a, (Color)(object)b, t);
-            if (typeof(T) == typeof(Vector2)) return (T)(object)Vector2.Lerp((Vector2)(object)a, (Vector2)(object)b, t);
-            if (typeof(T) == typeof(Vector3)) return (T)(object)Vector3.Lerp((Vector3)(object)a, (Vector3)(object)b, t);
-            if (typeof(T) == typeof(Vector4)) return (T)(object)Vector4.Lerp((Vector4)(object)a, (Vector4)(object)b, t);
-            if (typeof(T) == typeof(Quaternion)) return (T)(object)Quaternion.Lerp((Quaternion)(object)a, (Quaternion)(object)b, t);
-            throw new NotSupportedException();
+            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
+            for (int i = 0; i < _processCount; i++)
+                if (ptr[i]._target == target)
+                    ptr[i]._isDone = true;
         }
-    }
 
-    public static unsafe class LerpType
-    {
-        // TODO: Add more types here if needed
-        public static delegate*<float, float, float, float> Float = &Mathf.Lerp;
-        public static delegate*<Color, Color, float, Color> Colour = &Color.Lerp;
-        public static delegate*<Vector2, Vector2, float, Vector2> Vec2 = &Vector2.Lerp;
-        public static delegate*<Vector3, Vector3, float, Vector3> Vec3 = &Vector3.Lerp;
-        public static delegate*<Vector4, Vector4, float, Vector4> Vec4 = &Vector4.Lerp;
-        public static delegate*<Quaternion, Quaternion, float, Quaternion> Quat = &Quaternion.Lerp;
+        public static T ApplyLerp(T a, T b, float t) => _lerp(a, b, t);
+        
+        private static unsafe class LerpType
+        {
+            // TODO: Add more types here if needed
+            public static delegate*<float, float, float, float> Float = &Mathf.Lerp;
+            public static delegate*<Color, Color, float, Color> Colour = &Color.Lerp;
+            public static delegate*<Vector2, Vector2, float, Vector2> Vec2 = &Vector2.Lerp;
+            public static delegate*<Vector3, Vector3, float, Vector3> Vec3 = &Vector3.Lerp;
+            public static delegate*<Vector4, Vector4, float, Vector4> Vec4 = &Vector4.Lerp;
+            public static delegate*<Quaternion, Quaternion, float, Quaternion> Quat = &Quaternion.Lerp;
+        }
+
+        // Runs automatically after a Domain Reload (when exiting Play Mode or recompiling scripts)
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+        private static void DomainReloadCleanup()
+        {
+            if (_runningProcesses.IsCreated)
+                _runningProcesses.Dispose(); // Release NativeArray memory
+            _runner = null; // Remove reference to GameObject
+            _processCount = 0; // Reset active lerps
+            _rollingId = 0; // Reset ID counter
+        }
     }
 
     public unsafe static class Ease
     {
-        public enum Type
-        {
-            None = 0,
-        }
-
         public static float Apply(float t, Type type)
         {
-            if (type == Type.None) return t;
+            if (type == Type.None) return None(t);
+            if (type == Type.OutExpo) return OutExpo(t);
             throw new NotSupportedException();
         }
+
+        public enum Type { None, OutExpo }
+        private static float None(float t) => t;
+        private static float OutExpo(float t) => t == 1 ? 1 : 1 - Mathf.Pow(2, -10 * t);
     }
 }

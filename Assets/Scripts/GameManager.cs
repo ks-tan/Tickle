@@ -79,7 +79,7 @@ public unsafe class Tickle<T> where T : unmanaged
     public bool IsDone()
     {
         Lerp<T> process = default;
-        if (!LerpManager<T>.TryGetProcess(_lerpId, ref process)) 
+        if (!LerpManager<T>.TryGetRunningProcess(_lerpId, ref process)) 
             return true;
         return process._isDone;
     }
