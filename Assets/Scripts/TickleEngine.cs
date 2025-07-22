@@ -3,7 +3,9 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Unity.Collections;
 using System;
-using JetBrains.Annotations;
+using Unity.Burst;
+using Unity.Jobs;
+using Unity.Mathematics;
 
 namespace Tickle.Engine
 {
@@ -13,12 +15,19 @@ namespace Tickle.Engine
         {
             // TODO: Add more types here if needed
             // TODO: These UpdateAlls can be run as Jobs!
-            LerpManager<float>.UpdateAll();
-            LerpManager<Color>.UpdateAll();
-            LerpManager<Vector2>.UpdateAll();
-            LerpManager<Vector3>.UpdateAll();
-            LerpManager<Vector4>.UpdateAll();
-            LerpManager<Quaternion>.UpdateAll();
+            //LerpManager<float>.UpdateAll();
+            //LerpManager<Color>.UpdateAll();
+            //LerpManager<Vector2>.UpdateAll();
+            //LerpManager<Vector3>.UpdateAll();
+            //LerpManager<Vector4>.UpdateAll();
+            //LerpManager<Quaternion>.UpdateAll();
+
+            LerpManager<float>.BurstUpdateAll();
+            LerpManager<Color>.BurstUpdateAll();
+            LerpManager<Vector2>.BurstUpdateAll();
+            LerpManager<Vector3>.BurstUpdateAll();
+            LerpManager<Vector4>.BurstUpdateAll();
+            LerpManager<Quaternion>.BurstUpdateAll();
 
             LerpManager<float>.CompactRunningProcessArray();
             LerpManager<Color>.CompactRunningProcessArray();
@@ -86,26 +95,31 @@ namespace Tickle.Engine
         private static delegate*<T, T, float, T> _lerp;
 
         private static int _runningProcessCount;
-        private static NativeArray<Lerp<T>> _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
+        private static NativeArray<Lerp<T>> _runningProcesses;
 
         private static int _createdProcessCount;
-        private static NativeArray<Lerp<T>> _createdProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
+        private static NativeArray<Lerp<T>> _createdProcesses;
+
+        public enum LerpType { Float, Color, Vec2, Vec3, Vec4, Quat }
 
         private static void SetupRunner()
         {
-            if (_runner != null) return;
+            if (_runner != null) return; 
             var go = new GameObject("[LerpRunner]");
             go.hideFlags = HideFlags.HideAndDontSave;
             UnityEngine.Object.DontDestroyOnLoad(go);
             _runner = go.AddComponent<LerpRunner>();
 
             // TODO: Add more types here if needed
-            if (typeof(T) == typeof(float)) _lerp = (delegate*<T, T, float, T>)LerpType.Float;
-            else if (typeof(T) == typeof(Color)) _lerp = (delegate*<T, T, float, T>)LerpType.Colour;
-            else if (typeof(T) == typeof(Vector2)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec2;
-            else if (typeof(T) == typeof(Vector3)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec3;
-            else if (typeof(T) == typeof(Vector3)) _lerp = (delegate*<T, T, float, T>)LerpType.Vec4;
-            else if (typeof(T) == typeof(Quaternion)) _lerp = (delegate*<T, T, float, T>)LerpType.Quat;
+            if (typeof(T) == typeof(float)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Float;
+            else if (typeof(T) == typeof(Color)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Colour;
+            else if (typeof(T) == typeof(Vector2)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Vec2;
+            else if (typeof(T) == typeof(Vector3)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Vec3;
+            else if (typeof(T) == typeof(Vector4)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Vec4;
+            else if (typeof(T) == typeof(Quaternion)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Quat;
+
+            _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
+            _createdProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
         }
 
         private static bool TryGetProcess(int id, NativeArray<Lerp<T>> array, int count, ref Lerp<T> processRef)
@@ -135,6 +149,8 @@ namespace Tickle.Engine
 
         public static int Create(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
+            if (_runner == null)
+                SetupRunner();
             var process = new Lerp<T>(_rollingId++, ref target, start, end, duration, ease);
             if (_createdProcessCount >= _createdProcesses.Length)
                 ResizeCreatedProcessesArray(_createdProcesses.Length * 2);
@@ -151,9 +167,6 @@ namespace Tickle.Engine
 
         public static void Start(int id)
         {
-            if (_runner == null)
-                SetupRunner();
-
             Lerp<T> process = default;
             var isRunningProcessFound = TryGetRunningProcess(id, ref process);
             if (!isRunningProcessFound)
@@ -241,14 +254,115 @@ namespace Tickle.Engine
             }
         }
 
+        [BurstCompile]
+        public static void BurstUpdateAll()
+        {
+            var type = LerpType.Float;
+            if (typeof(T) == typeof(Color)) type = LerpType.Color;
+            if (typeof(T) == typeof(Vector2)) type = LerpType.Vec2;
+            if (typeof(T) == typeof(Vector3)) type = LerpType.Vec3;
+            if (typeof(T) == typeof(Vector4)) type = LerpType.Vec4;
+            if (typeof(T) == typeof(Quaternion)) type = LerpType.Quat;
+            var job = new LerpUpdateParallelJob() {
+                DeltaTime = Time.deltaTime,
+                Processes = _runningProcesses,
+                TypeLerp = type
+            };
+            JobHandle handle = job.Schedule(_runningProcessCount, 64); // 64 = batch size
+            handle.Complete();
+        }
+
+        [BurstCompile]
+        public struct LerpUpdateParallelJob : IJobParallelFor
+        {
+            public float DeltaTime;
+            public NativeArray<Lerp<T>> Processes;
+            public LerpType TypeLerp;
+
+            public void Execute(int i)
+            {
+                Lerp<T> process = Processes[i];
+                if (!process._isRunning || process._isDone) return;
+
+                if (process._elapsedTime < process._duration)
+                {
+                    float t = process._elapsedTime / process._duration;
+                    t = Ease.Apply(t, process._easeType);
+
+                    // Directly write to target memory using the correct type
+                    if (TypeLerp == LerpType.Float)
+                    {
+                        float start = UnsafeUtility.ReadArrayElement<float>(&process._start, 0);
+                        float end = UnsafeUtility.ReadArrayElement<float>(&process._end, 0);
+                        float result = math.lerp(start, end, t);
+                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                    }
+                    else if (TypeLerp == LerpType.Color)
+                    {
+                        Color start = UnsafeUtility.ReadArrayElement<Color>(&process._start, 0);
+                        Color end = UnsafeUtility.ReadArrayElement<Color>(&process._end, 0);
+                        Color result = Color.Lerp(start, end, t);
+                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                    }
+                    else if (TypeLerp == LerpType.Vec2)
+                    {
+                        Vector2 start = UnsafeUtility.ReadArrayElement<Vector2>(&process._start, 0);
+                        Vector2 end = UnsafeUtility.ReadArrayElement<Vector2>(&process._end, 0);
+                        Vector2 result = Vector2.Lerp(start, end, t);
+                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                    }
+                    else if (TypeLerp == LerpType.Vec3)
+                    {
+                        Vector3 start = UnsafeUtility.ReadArrayElement<Vector3>(&process._start, 0);
+                        Vector3 end = UnsafeUtility.ReadArrayElement<Vector3>(&process._end, 0);
+                        Vector3 result = Vector3.Lerp(start, end, t);
+                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                    }
+                    else if (TypeLerp == LerpType.Vec4)
+                    {
+                        Vector4 start = UnsafeUtility.ReadArrayElement<Vector4>(&process._start, 0);
+                        Vector4 end = UnsafeUtility.ReadArrayElement<Vector4>(&process._end, 0);
+                        Vector4 result = Vector4.Lerp(start, end, t);
+                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                    }
+                    else if (TypeLerp == LerpType.Quat)
+                    {
+                        Quaternion start = UnsafeUtility.ReadArrayElement<Quaternion>(&process._start, 0);
+                        Quaternion end = UnsafeUtility.ReadArrayElement<Quaternion>(&process._end, 0);
+                        Quaternion result = Quaternion.Lerp(start, end, t);
+                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                    }
+
+                    process._elapsedTime += DeltaTime;
+                }
+                else
+                {
+                    // Direct copy for completion
+                    UnsafeUtility.CopyStructureToPtr(ref process._end, process._target);
+                    process._isDone = true;
+                }
+
+                Processes[i] = process;
+            }
+        }
+
+        private static LerpType GetLerpType()
+        {
+            if (typeof(T) == typeof(float)) return LerpType.Float;
+            if (typeof(T) == typeof(Color)) return LerpType.Color;
+            return LerpType.Quat;
+        }
+
         public static void CompactCreatedProcessArray()
         {
+            if (_createdProcessCount < 64) return;
             if (_createdProcessCount > _createdProcesses.Length / 3) return;
             ResizeCreatedProcessesArray(_createdProcesses.Length / 2);
         }
 
         public static void CompactRunningProcessArray()
         {
+            if (_runningProcessCount < 64) return;
             if (_runningProcessCount > _runningProcesses.Length / 3) return;
             ResizeRunningProcessesArray(_runningProcesses.Length / 2);
         }
@@ -295,7 +409,7 @@ namespace Tickle.Engine
 
         public static T ApplyLerp(T a, T b, float t) => _lerp(a, b, t);
         
-        private static unsafe class LerpType
+        private static unsafe class LerpFunc
         {
             // TODO: Add more types here if needed
             public static delegate*<float, float, float, float> Float = &Mathf.Lerp;
@@ -321,6 +435,7 @@ namespace Tickle.Engine
 
     public unsafe static class Ease
     {
+        [BurstCompile]
         public static float Apply(float t, Type type)
         {
             if (type == Type.None) return None(t);
