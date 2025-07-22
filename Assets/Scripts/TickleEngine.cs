@@ -49,6 +49,16 @@ namespace Tickle.Engine
             LerpManager<Vector4>.CompactCreatedProcessArray();
             LerpManager<Quaternion>.CompactCreatedProcessArray();
         }
+
+        private void OnDestroy()
+        {
+            LerpManager<float>.Cleanup();
+            LerpManager<Color>.Cleanup();
+            LerpManager<Vector2>.Cleanup();
+            LerpManager<Vector3>.Cleanup();
+            LerpManager<Vector4>.Cleanup();
+            LerpManager<Quaternion>.Cleanup();
+        }
     }
 
     public unsafe struct Lerp<T> where T : unmanaged
@@ -421,16 +431,11 @@ namespace Tickle.Engine
             public static delegate*<Quaternion, Quaternion, float, Quaternion> Quat = &Quaternion.Lerp;
         }
 
-        // Runs automatically after a Domain Reload (when exiting Play Mode or recompiling scripts)
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void DomainReloadCleanup()
+        public static void Cleanup()
         {
             // Release NativeArray memory
             if (_runningProcesses.IsCreated) _runningProcesses.Dispose(); 
             if (_createdProcesses.IsCreated) _createdProcesses.Dispose();
-            _runner = null; // Remove reference to GameObject
-            _runningProcessCount = 0; // Reset active lerps
-            _rollingId = 0; // Reset ID counter
         }
     }
 
