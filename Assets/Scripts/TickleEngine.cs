@@ -13,44 +13,41 @@ namespace Tickle.Engine
         {
             // TODO: Add more types here if needed
             // TODO: These UpdateAlls can be run as Jobs!
-            Lerp<float>.UpdateAll();
-            Lerp<Color>.UpdateAll();
-            Lerp<Vector2>.UpdateAll();
-            Lerp<Vector3>.UpdateAll();
-            Lerp<Vector4>.UpdateAll();
-            Lerp<Quaternion>.UpdateAll();
+            LerpManager<float>.UpdateAll();
+            LerpManager<Color>.UpdateAll();
+            LerpManager<Vector2>.UpdateAll();
+            LerpManager<Vector3>.UpdateAll();
+            LerpManager<Vector4>.UpdateAll();
+            LerpManager<Quaternion>.UpdateAll();
 
-            Lerp<float>.CompactProcessesArray();
-            Lerp<Color>.CompactProcessesArray();
-            Lerp<Vector2>.CompactProcessesArray();
-            Lerp<Vector3>.CompactProcessesArray();
-            Lerp<Vector4>.CompactProcessesArray();
-            Lerp<Quaternion>.CompactProcessesArray();
+            LerpManager<float>.CompactProcessesArray();
+            LerpManager<Color>.CompactProcessesArray();
+            LerpManager<Vector2>.CompactProcessesArray();
+            LerpManager<Vector3>.CompactProcessesArray();
+            LerpManager<Vector4>.CompactProcessesArray();
+            LerpManager<Quaternion>.CompactProcessesArray();
         }
     }
 
     public unsafe struct Lerp<T> where T : unmanaged
     {
         // Note: Target owner should be a reference type for there to be no boxing
-        private readonly int _targetOwnerHash;
-        private readonly int _id;
-        private readonly T* _target;
-        private readonly T _start;
-        private readonly T _end;
-        private readonly float _duration;
-        private readonly delegate*<T, T, float, T> _lerp;
-        private readonly delegate*<float, float> _ease;
+        public int _targetOwnerHash;
+        public int _id;
+        public T* _target;
+        public T _start;
+        public T _end;
+        public float _duration;
+        public delegate*<T, T, float, T> _lerp; // TODO: Turn this to enum, or this remains managed in the eyes of Mono
+        public delegate*<float, float> _ease; // TODO: Turn this to enum, or this remains managed in the eyes of Mono
 
-        private float _elapsedTime;
-        private bool _isRunning;
-        private bool _isDone;
+        public float _elapsedTime;
+        public bool _isRunning;
+        public bool _isDone;
 
-        public int Id => _id;
-        public bool IsDone => _isDone;
-
-        public Lerp(object targetOwner, ref T target, T start, T end, float duration, delegate*<float, float> ease = null)
+        public Lerp(int id, int targetOwnerHash, ref T target, T start, T end, float duration, delegate*<float, float> ease = null)
         {
-            _id = _rollingId++;
+            _id = id;
             _target = (T*)UnsafeUtility.AddressOf(ref target);
             _start = start;
             _end = end;
@@ -59,10 +56,7 @@ namespace Tickle.Engine
             _ease = ease == null ? Ease.None : ease;
             _isRunning = false;
             _isDone = false;
-
-            _targetOwnerHash = targetOwner == null ? -1 : targetOwner.GetHashCode();
-            if (_targetOwnerHash != -1)
-                _hashToObject.Add(_targetOwnerHash, targetOwner);
+            _targetOwnerHash = targetOwnerHash;
 
             _lerp = (delegate*<T, T, float, T>)LerpType.Float;
             if (typeof(T) == typeof(Color)) _lerp = (delegate*<T, T, float, T>)LerpType.Colour;
@@ -77,7 +71,7 @@ namespace Tickle.Engine
         {
             if (!_isRunning) return;
             if (_isDone) return;
-            var isTargetOwnerInvalid = _targetOwnerHash != -1 && !_hashToObject.ContainsKey(_targetOwnerHash);
+            var isTargetOwnerInvalid = _targetOwnerHash != -1 && !LerpManager<T>._hashToObject.ContainsKey(_targetOwnerHash);
             if (isTargetOwnerInvalid || _target == null)
             {
                 _isDone = true;
@@ -93,20 +87,23 @@ namespace Tickle.Engine
             *_target = _end;
             _isDone = true;
         }
+    }
 
+    public static unsafe class LerpManager<T> where T : unmanaged
+    {
         private static LerpRunner _runner;
         private static int _rollingId;
         private static int _processCount;
 
         private static NativeArray<Lerp<T>> _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
-        private static Dictionary<int, object> _hashToObject = new Dictionary<int, object>();
+        public static Dictionary<int, object> _hashToObject = new Dictionary<int, object>();
 
         private static void SetupRunner()
         {
             if (_runner != null) return;
             var go = new GameObject("[LerpRunner]");
             go.hideFlags = HideFlags.HideAndDontSave;
-            UnityEngine.Object.DontDestroyOnLoad(go);
+            Object.DontDestroyOnLoad(go);
             _runner = go.AddComponent<LerpRunner>();
         }
 
@@ -125,9 +122,12 @@ namespace Tickle.Engine
 
         public static int Start(object targetOwner, ref T target, T start, T end, float duration, delegate*<float, float> ease = null)
         {
-            var process = new Lerp<T>(targetOwner, ref target, start, end, duration, ease);
+            var targetOwnerHash = targetOwner == null ? -1 : targetOwner.GetHashCode();
+            if (targetOwnerHash != -1)
+                _hashToObject.Add(targetOwnerHash, targetOwner);
+            var process = new Lerp<T>(_rollingId++, targetOwnerHash, ref target, start, end, duration, ease);
             Start(ref process);
-            return process.Id;
+            return process._id;
         }
 
         public static void Start(ref Lerp<T> process)
@@ -141,7 +141,7 @@ namespace Tickle.Engine
             process._elapsedTime = 0;
 
             Lerp<T> dummy = default;
-            var isFound = TryGetProcess(process.Id, ref dummy);
+            var isFound = TryGetProcess(process._id, ref dummy);
             if (!isFound)
             {
                 if (_processCount >= _runningProcesses.Length)
@@ -204,7 +204,7 @@ namespace Tickle.Engine
 
         public static void UpdateAll()
         {
-            foreach(var kvp in _hashToObject.ToList())
+            foreach (var kvp in _hashToObject.ToList())
             {
                 var obj = kvp.Value;
                 if (obj != null) continue;
@@ -243,17 +243,17 @@ namespace Tickle.Engine
             _runningProcesses.Dispose();
             _runningProcesses = newArray;
         }
+    }
 
-        private static unsafe class LerpType
-        {
-            // TODO: Add more types here if needed
-            public static delegate*<float, float, float, float> Float = &Mathf.Lerp;
-            public static delegate*<Color, Color, float, Color> Colour = &Color.Lerp;
-            public static delegate*<Vector2, Vector2, float, Vector2> Vec2 = &Vector2.Lerp;
-            public static delegate*<Vector3, Vector3, float, Vector3> Vec3 = &Vector3.Lerp;
-            public static delegate*<Vector4, Vector4, float, Vector4> Vec4 = &Vector4.Lerp;
-            public static delegate*<Quaternion, Quaternion, float, Quaternion> Quat = &Quaternion.Lerp;
-        }
+    public static unsafe class LerpType
+    {
+        // TODO: Add more types here if needed
+        public static delegate*<float, float, float, float> Float = &Mathf.Lerp;
+        public static delegate*<Color, Color, float, Color> Colour = &Color.Lerp;
+        public static delegate*<Vector2, Vector2, float, Vector2> Vec2 = &Vector2.Lerp;
+        public static delegate*<Vector3, Vector3, float, Vector3> Vec3 = &Vector3.Lerp;
+        public static delegate*<Vector4, Vector4, float, Vector4> Vec4 = &Vector4.Lerp;
+        public static delegate*<Quaternion, Quaternion, float, Quaternion> Quat = &Quaternion.Lerp;
     }
 
     public unsafe static class Ease

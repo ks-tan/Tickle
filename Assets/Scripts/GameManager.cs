@@ -25,7 +25,7 @@ public unsafe class GameManager : MonoBehaviour
         for (int i = 0; i < 10000; i++)
         {
             _values[i] = 0;
-            Lerp<float>.Start(this, ref _values[i], start: 0, end: 10, duration: 10);
+            LerpManager<float>.Start(this, ref _values[i], start: 0, end: 10, duration: 10);
         }
     }
 
@@ -58,8 +58,7 @@ public unsafe class Tickle<T> where T : unmanaged
 
     public Tickle(Action<T> setter, T start, T end, float duration, delegate*<float, float> ease, Action oncomplete)
     {
-        var process = new Lerp<T>(this, ref _value, start, end, duration, ease);
-        _lerpId = process.Id;
+        _lerpId = LerpManager<T>.Start(this, ref _value, start, end, duration, ease);
         _value = start;
         _setter = setter;
         _onComplete = oncomplete;
@@ -80,9 +79,9 @@ public unsafe class Tickle<T> where T : unmanaged
     public bool IsDone()
     {
         Lerp<T> process = default;
-        if (!Lerp<T>.TryGetProcess(_lerpId, ref process)) 
+        if (!LerpManager<T>.TryGetProcess(_lerpId, ref process)) 
             return true;
-        return process.IsDone;
+        return process._isDone;
     }
 
     private static TickleRunner _runner;
