@@ -26,6 +26,13 @@ namespace Tickle.Engine
             LerpManager<Vector3>.CompactRunningProcessArray();
             LerpManager<Vector4>.CompactRunningProcessArray();
             LerpManager<Quaternion>.CompactRunningProcessArray();
+
+            LerpManager<float>.CompactCreatedProcessArray();
+            LerpManager<Color>.CompactCreatedProcessArray();
+            LerpManager<Vector2>.CompactCreatedProcessArray();
+            LerpManager<Vector3>.CompactCreatedProcessArray();
+            LerpManager<Vector4>.CompactCreatedProcessArray();
+            LerpManager<Quaternion>.CompactCreatedProcessArray();
         }
     }
 
@@ -81,6 +88,9 @@ namespace Tickle.Engine
         private static int _runningProcessCount;
         private static NativeArray<Lerp<T>> _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
 
+        private static int _createdProcessCount;
+        private static NativeArray<Lerp<T>> _createdProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
+
         private static void SetupRunner()
         {
             if (_runner != null) return;
@@ -118,31 +128,25 @@ namespace Tickle.Engine
             return TryGetProcess(id, _runningProcesses, _runningProcessCount, ref processRef);
         }
 
-        public static int Start(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
+        public static bool TryGetCreatedProcess(int id, ref Lerp<T> processRef)
+        {
+            return TryGetProcess(id, _createdProcesses, _createdProcessCount, ref processRef);
+        }
+
+        public static int Create(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
             var process = new Lerp<T>(_rollingId++, ref target, start, end, duration, ease);
-            Start(ref process);
+            if (_createdProcessCount >= _createdProcesses.Length)
+                ResizeCreatedProcessesArray(_createdProcesses.Length * 2);
+            _createdProcesses[_createdProcessCount++] = process;
             return process._id;
         }
 
-        public static void Start(ref Lerp<T> process)
+        public static int Start(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
-            if (_runner == null)
-                SetupRunner();
-
-            if (process._isRunning) return;
-            process._isRunning = true;
-            process._isDone = false;
-            process._elapsedTime = 0;
-
-            Lerp<T> dummy = default;
-            var isFound = TryGetRunningProcess(process._id, ref dummy);
-            if (!isFound)
-            {
-                if (_runningProcessCount >= _runningProcesses.Length)
-                    ResizeRunningProcessesArray(_runningProcesses.Length * 2);
-                _runningProcesses[_runningProcessCount++] = process;
-            }
+            var pid = Create(ref target, start, end, duration, ease);
+            Start(pid);
+            return pid;
         }
 
         public static void Start(int id)
@@ -151,16 +155,24 @@ namespace Tickle.Engine
                 SetupRunner();
 
             Lerp<T> process = default;
-            var isFound = TryGetRunningProcess(id, ref process);
-            if (!isFound) return;
-            process._isRunning = true;
-            process._isDone = false;
-            process._elapsedTime = 0;
-        }
-
-        public static void Resume(ref Lerp<T> process)
-        {
-            process._isRunning = true;
+            var isRunningProcessFound = TryGetRunningProcess(id, ref process);
+            if (!isRunningProcessFound)
+            {
+                var isCreatedProcessFound = TryGetCreatedProcess(id, ref process);
+                if (!isCreatedProcessFound) return;
+                process._isRunning = true;
+                process._isDone = false;
+                process._elapsedTime = 0;
+                if (_runningProcessCount >= _runningProcesses.Length)
+                    ResizeRunningProcessesArray(_runningProcesses.Length * 2);
+                _runningProcesses[_runningProcessCount++] = process;
+            }
+            else
+            {
+                process._isRunning = true;
+                process._isDone = false;
+                process._elapsedTime = 0;
+            }
         }
 
         public static void Resume(int id)
@@ -171,11 +183,6 @@ namespace Tickle.Engine
             process._isRunning = true;
         }
 
-        public static void Pause(ref Lerp<T> process)
-        {
-            process._isRunning = false;
-        }
-
         public static void Pause(int id)
         {
             Lerp<T> process = default;
@@ -184,17 +191,32 @@ namespace Tickle.Engine
             process._isRunning = false;
         }
 
-        public static void Stop(ref Lerp<T> process)
-        {
-            process._isDone = true;
-        }
-
         public static void Stop(int id)
         {
             Lerp<T> process = default;
             var isFound = TryGetRunningProcess(id, ref process);
             if (!isFound) return;
             process._isDone = true;
+        }
+
+        public static void Destroy(int id)
+        {
+            Stop(id);
+
+            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_createdProcesses);
+            int index = 0;
+            while (index < _createdProcessCount)
+            {
+                if (ptr[index]._id != id)
+                {
+                    index++;
+                    continue;
+                }
+
+                // Remove from list by swapping with last element and reduce count
+                ptr[index] = ptr[_createdProcessCount - 1];
+                _createdProcessCount--;
+            }
         }
 
         public static void UpdateAll()
@@ -219,10 +241,21 @@ namespace Tickle.Engine
             }
         }
 
+        public static void CompactCreatedProcessArray()
+        {
+            if (_createdProcessCount > _createdProcesses.Length / 3) return;
+            ResizeCreatedProcessesArray(_createdProcesses.Length / 2);
+        }
+
         public static void CompactRunningProcessArray()
         {
             if (_runningProcessCount > _runningProcesses.Length / 3) return;
             ResizeRunningProcessesArray(_runningProcesses.Length / 2);
+        }
+
+        private static void ResizeCreatedProcessesArray(int newSize)
+        {
+            ResizeProcessesArray(newSize, ref _createdProcesses, _createdProcessCount);
         }
 
         private static void ResizeRunningProcessesArray(int newSize)
@@ -245,6 +278,19 @@ namespace Tickle.Engine
             for (int i = 0; i < _runningProcessCount; i++)
                 if (ptr[i]._target == target)
                     ptr[i]._isDone = true;
+
+            ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_createdProcesses);
+            int index = 0;
+            while (index < _createdProcessCount)
+            {
+                if (ptr[index]._target == target)
+                {
+                    // Remove from list by swapping with last element and reduce count
+                    ptr[index] = ptr[_createdProcessCount - 1];
+                    _createdProcessCount--;
+                }
+                else index++;
+            }
         }
 
         public static T ApplyLerp(T a, T b, float t) => _lerp(a, b, t);
@@ -264,8 +310,9 @@ namespace Tickle.Engine
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
         private static void DomainReloadCleanup()
         {
-            if (_runningProcesses.IsCreated)
-                _runningProcesses.Dispose(); // Release NativeArray memory
+            // Release NativeArray memory
+            if (_runningProcesses.IsCreated) _runningProcesses.Dispose(); 
+            if (_createdProcesses.IsCreated) _createdProcesses.Dispose();
             _runner = null; // Remove reference to GameObject
             _runningProcessCount = 0; // Reset active lerps
             _rollingId = 0; // Reset ID counter
