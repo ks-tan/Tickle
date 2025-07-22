@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using Tickle.Collections;
 using Tickle.Engine;
 using UnityEngine;
 
@@ -17,6 +18,24 @@ public unsafe class GameManager : MonoBehaviour
     {
         Debug.Log(_values[100]);
         Debug.Log(Time.deltaTime + "seconds, " + (1 / Time.deltaTime) + " fps");
+    }
+
+    private void LinkedNodeTest()
+    {
+        LinkedNode<int> node1 = new LinkedNode<int>(1);
+        LinkedNode<int> node2 = new LinkedNode<int>(2);
+        LinkedNode<int> node3 = new LinkedNode<int>(3);
+
+        LinkedNode<int>.AddAfter(&node1, &node2);
+        LinkedNode<int>.AddAfter(&node2, &node3);
+        LinkedNode<int>.Remove(&node3);
+
+        LinkedNode<int>* currentNode = &node1;
+        while (currentNode != null)
+        {
+            Debug.Log(currentNode->Value);
+            currentNode = currentNode->Next;
+        }
     }
 
     // 150 fps
