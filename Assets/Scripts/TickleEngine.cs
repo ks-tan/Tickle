@@ -1,3 +1,5 @@
+//#define ENABLE_BURST
+
 using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -14,20 +16,21 @@ namespace Tickle.Engine
         private void Update()
         {
             // TODO: Add more types here if needed
-            // TODO: These UpdateAlls can be run as Jobs!
-            //LerpManager<float>.UpdateAll();
-            //LerpManager<Color>.UpdateAll();
-            //LerpManager<Vector2>.UpdateAll();
-            //LerpManager<Vector3>.UpdateAll();
-            //LerpManager<Vector4>.UpdateAll();
-            //LerpManager<Quaternion>.UpdateAll();
-
+#if ENABLE_BURST
             LerpManager<float>.BurstUpdateAll();
             LerpManager<Color>.BurstUpdateAll();
             LerpManager<Vector2>.BurstUpdateAll();
             LerpManager<Vector3>.BurstUpdateAll();
             LerpManager<Vector4>.BurstUpdateAll();
             LerpManager<Quaternion>.BurstUpdateAll();
+#else
+            LerpManager<float>.UpdateAll();
+            LerpManager<Color>.UpdateAll();
+            LerpManager<Vector2>.UpdateAll();
+            LerpManager<Vector3>.UpdateAll();
+            LerpManager<Vector4>.UpdateAll();
+            LerpManager<Quaternion>.UpdateAll();
+#endif
 
             LerpManager<float>.CompactRunningProcessArray();
             LerpManager<Color>.CompactRunningProcessArray();
@@ -99,8 +102,6 @@ namespace Tickle.Engine
 
         private static int _createdProcessCount;
         private static NativeArray<Lerp<T>> _createdProcesses;
-
-        public enum LerpType { Float, Color, Vec2, Vec3, Vec4, Quat }
 
         private static void SetupRunner()
         {
@@ -254,6 +255,9 @@ namespace Tickle.Engine
             }
         }
 
+#if ENABLE_BURST
+        public enum LerpType { Float, Color, Vec2, Vec3, Vec4, Quat }
+
         [BurstCompile]
         public static void BurstUpdateAll()
         {
@@ -345,13 +349,7 @@ namespace Tickle.Engine
                 Processes[i] = process;
             }
         }
-
-        private static LerpType GetLerpType()
-        {
-            if (typeof(T) == typeof(float)) return LerpType.Float;
-            if (typeof(T) == typeof(Color)) return LerpType.Color;
-            return LerpType.Quat;
-        }
+#endif
 
         public static void CompactCreatedProcessArray()
         {
