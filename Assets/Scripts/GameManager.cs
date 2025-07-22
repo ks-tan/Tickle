@@ -25,7 +25,7 @@ public unsafe class GameManager : MonoBehaviour
         for (int i = 0; i < 10000; i++)
         {
             _values[i] = 0;
-            LerpManager<float>.Start(this, ref _values[i], start: 0, end: 10, duration: 10);
+            LerpManager<float>.Start(ref _values[i], start: 0, end: 10, duration: 10);
         }
     }
 
@@ -58,7 +58,7 @@ public unsafe class Tickle<T> where T : unmanaged
 
     public Tickle(Action<T> setter, T start, T end, float duration, Ease.Type ease, Action oncomplete)
     {
-        _lerpId = LerpManager<T>.Start(this, ref _value, start, end, duration, ease);
+        _lerpId = LerpManager<T>.Start(ref _value, start, end, duration, ease);
         _value = start;
         _setter = setter;
         _onComplete = oncomplete;

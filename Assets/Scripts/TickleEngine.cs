@@ -33,7 +33,6 @@ namespace Tickle.Engine
     public unsafe struct Lerp<T> where T : unmanaged
     {
         // Note: Target owner should be a reference type for there to be no boxing
-        public int _targetOwnerHash;
         public int _id;
         public T* _target;
         public T _start;
@@ -45,7 +44,7 @@ namespace Tickle.Engine
         public bool _isRunning;
         public bool _isDone;
 
-        public Lerp(int id, int targetOwnerHash, ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
+        public Lerp(int id, ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
             _id = id;
             _target = (T*)UnsafeUtility.AddressOf(ref target);
@@ -56,7 +55,6 @@ namespace Tickle.Engine
             _easeType = ease;
             _isRunning = false;
             _isDone = false;
-            _targetOwnerHash = targetOwnerHash;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -64,12 +62,6 @@ namespace Tickle.Engine
         {
             if (!_isRunning) return;
             if (_isDone) return;
-            var isTargetOwnerInvalid = _targetOwnerHash != -1 && !LerpManager<T>._hashToObject.ContainsKey(_targetOwnerHash);
-            if (isTargetOwnerInvalid || _target == null)
-            {
-                _isDone = true;
-                return;
-            }
             if (_elapsedTime < _duration)
             {
                 var value = LerpManager<T>.ApplyLerp(_start, _end, Ease.Apply(_elapsedTime / _duration, _easeType));
@@ -89,7 +81,6 @@ namespace Tickle.Engine
         private static int _processCount;
 
         private static NativeArray<Lerp<T>> _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
-        public static Dictionary<int, object> _hashToObject = new Dictionary<int, object>();
 
         private static void SetupRunner()
         {
@@ -113,12 +104,9 @@ namespace Tickle.Engine
             return false;
         }
 
-        public static int Start(object targetOwner, ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
+        public static int Start(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
-            var targetOwnerHash = targetOwner == null ? -1 : targetOwner.GetHashCode();
-            if (targetOwnerHash != -1 && !_hashToObject.ContainsKey(targetOwnerHash))
-                _hashToObject.Add(targetOwnerHash, targetOwner);
-            var process = new Lerp<T>(_rollingId++, targetOwnerHash, ref target, start, end, duration, ease);
+            var process = new Lerp<T>(_rollingId++, ref target, start, end, duration, ease);
             Start(ref process);
             return process._id;
         }
@@ -197,13 +185,6 @@ namespace Tickle.Engine
 
         public static void UpdateAll()
         {
-            foreach (var kvp in _hashToObject.ToList())
-            {
-                var obj = kvp.Value;
-                if (obj != null) continue;
-                _hashToObject.Remove(kvp.Key);
-            }
-
             for (int i = 0; i < _processCount; i++)
                 _runningProcesses[i].Update();
 
