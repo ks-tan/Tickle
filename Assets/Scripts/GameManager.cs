@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Tickle.Engine;
+using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
 public unsafe class GameManager : MonoBehaviour
@@ -10,7 +11,7 @@ public unsafe class GameManager : MonoBehaviour
 
     private void Start()
     {
-        LerpTest();
+        TickleTest();
     }
 
     private void Update()
@@ -19,7 +20,31 @@ public unsafe class GameManager : MonoBehaviour
         Debug.Log(Time.deltaTime + "seconds, " + (1 / Time.deltaTime) + " fps");
     }
 
-    // 150 fps
+    private void TickleTest()
+    {
+        for (int i = 0; i < 10000; i++)
+        {
+            _values[i] = 0;
+            var setter = new FloatSetter { Index = i, Array = _values };
+            new Tickle<float>(
+                setter.Set,
+                0,
+                10,
+                duration: 10,
+                Ease.Type.None,
+                () => Debug.Log("DONE")
+            ).Start();
+        }
+    }
+    struct FloatSetter
+    {
+        public int Index;
+        public float[] Array;
+        public void Set(float value) => Array[Index] = value;
+    }
+
+
+    // 200+ fps
     private void LerpTest()
     {
         for (int i = 0; i < 10000; i++)
@@ -58,7 +83,8 @@ public unsafe class Tickle<T> where T : unmanaged
 
     public Tickle(Action<T> setter, T start, T end, float duration, Ease.Type ease, Action oncomplete)
     {
-        _lerpId = LerpManager<T>.Start(ref _value, start, end, duration, ease);
+        if (_runner == null) SetupRunner();
+        _lerpId = LerpManager<T>.Create(ref _value, start, end, duration, ease);
         _value = start;
         _setter = setter;
         _onComplete = oncomplete;
@@ -66,14 +92,9 @@ public unsafe class Tickle<T> where T : unmanaged
 
     public void Start()
     {
-        // TODO: We need to include Lerp<T> static function to get "created" processes
-        // and remove from "created" processes when Tickle instance is finalized.
-
-        //if (_runner == null) 
-        //    SetupRunner();
-        //Lerp<T>.Start(_lerpId);
-        //if (!_tickles.Contains(this))
-        //    _tickles.Add(this);
+        LerpManager<T>.Start(_lerpId);
+        if (!_tickles.Contains(this))
+            _tickles.Add(this);
     }
 
     public bool IsDone()
@@ -85,7 +106,7 @@ public unsafe class Tickle<T> where T : unmanaged
     }
 
     private static TickleRunner _runner;
-    private static List<Tickle<T>> _tickles;
+    private static List<Tickle<T>> _tickles = new List<Tickle<T>>();
 
     private static void SetupRunner()
     {
@@ -98,15 +119,15 @@ public unsafe class Tickle<T> where T : unmanaged
 
     public static void UpdateAll()
     {
-        for(int i = _tickles.Count - 1; i >= 0; i--)
+        foreach(var tickle in _tickles)
         {
-            var tickle = _tickles[i];
             tickle._setter(tickle._value);
             if (!tickle.IsDone()) continue;
-            tickle._onComplete?.Invoke();   
-            _tickles.Remove(tickle);
+            tickle._onComplete?.Invoke();
         }
     }
+
+    ~Tickle() => LerpManager<T>.CancelAllForTarget(UnsafeUtility.AddressOf(ref _value));
 }
 
 public class TickleRunner : MonoBehaviour

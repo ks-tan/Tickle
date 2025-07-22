@@ -233,15 +233,14 @@ namespace Tickle.Engine
             int index = 0;
             while (index < _createdProcessCount)
             {
-                if (ptr[index].Id != id)
+                if (ptr[index].Id == id)
                 {
-                    index++;
-                    continue;
+                    // Remove from list by swapping with last element and reduce count
+                    ptr[index] = ptr[_createdProcessCount - 1];
+                    _createdProcessCount--;
+                    break;
                 }
-
-                // Remove from list by swapping with last element and reduce count
-                ptr[index] = ptr[_createdProcessCount - 1];
-                _createdProcessCount--;
+                else index++;
             }
         }
 
