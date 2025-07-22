@@ -39,13 +39,13 @@ namespace Tickle.Engine
         public T _start;
         public T _end;
         public float _duration;
-        public delegate*<float, float> _ease; // TODO: Turn this to enum, or this remains managed in the eyes of Mono
+        public Ease.Type _easeType; // TODO: Turn this to enum, or this remains managed in the eyes of Mono
 
         public float _elapsedTime;
         public bool _isRunning;
         public bool _isDone;
 
-        public Lerp(int id, int targetOwnerHash, ref T target, T start, T end, float duration, delegate*<float, float> ease = null)
+        public Lerp(int id, int targetOwnerHash, ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
             _id = id;
             _target = (T*)UnsafeUtility.AddressOf(ref target);
@@ -53,7 +53,7 @@ namespace Tickle.Engine
             _end = end;
             _elapsedTime = 0;
             _duration = duration;
-            _ease = ease == null ? Ease.None : ease;
+            _easeType = ease;
             _isRunning = false;
             _isDone = false;
             _targetOwnerHash = targetOwnerHash;
@@ -72,7 +72,7 @@ namespace Tickle.Engine
             }
             if (_elapsedTime < _duration)
             {
-                var value = LerpManager<T>.ApplyLerp(_start, _end, _ease(_elapsedTime / _duration));
+                var value = LerpManager<T>.ApplyLerp(_start, _end, Ease.Apply(_elapsedTime / _duration, _easeType));
                 *_target = value;
                 _elapsedTime += Time.deltaTime;
                 return;
@@ -113,10 +113,10 @@ namespace Tickle.Engine
             return false;
         }
 
-        public static int Start(object targetOwner, ref T target, T start, T end, float duration, delegate*<float, float> ease = null)
+        public static int Start(object targetOwner, ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
             var targetOwnerHash = targetOwner == null ? -1 : targetOwner.GetHashCode();
-            if (targetOwnerHash != -1)
+            if (targetOwnerHash != -1 && !_hashToObject.ContainsKey(targetOwnerHash))
                 _hashToObject.Add(targetOwnerHash, targetOwner);
             var process = new Lerp<T>(_rollingId++, targetOwnerHash, ref target, start, end, duration, ease);
             Start(ref process);
@@ -262,8 +262,15 @@ namespace Tickle.Engine
 
     public unsafe static class Ease
     {
-        // TODO: Add more easing functions
-        private static float Default(float t) => t;
-        public static delegate*<float, float> None = &Default;
+        public enum Type
+        {
+            None = 0,
+        }
+
+        public static float Apply(float t, Type type)
+        {
+            if (type == Type.None) return t;
+            throw new NotSupportedException();
+        }
     }
 }

@@ -56,7 +56,7 @@ public unsafe class Tickle<T> where T : unmanaged
     private Action<T> _setter;
     private Action _onComplete;
 
-    public Tickle(Action<T> setter, T start, T end, float duration, delegate*<float, float> ease, Action oncomplete)
+    public Tickle(Action<T> setter, T start, T end, float duration, Ease.Type ease, Action oncomplete)
     {
         _lerpId = LerpManager<T>.Start(this, ref _value, start, end, duration, ease);
         _value = start;
