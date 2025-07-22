@@ -1,8 +1,6 @@
 using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
-using System.Collections.Generic;
-using System.Linq;
 using Unity.Collections;
 using System;
 
@@ -38,7 +36,7 @@ namespace Tickle.Engine
         public T _start;
         public T _end;
         public float _duration;
-        public Ease.Type _easeType; // TODO: Turn this to enum, or this remains managed in the eyes of Mono
+        public Ease.Type _easeType;
 
         public float _elapsedTime;
         public bool _isRunning;
@@ -93,11 +91,13 @@ namespace Tickle.Engine
 
         public static bool TryGetProcess(int id, ref Lerp<T> processRef)
         {
+            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
+
             for (int i = 0; i < _processCount; i++)
             {
-                if (_runningProcesses[i]._id == id)
+                if (ptr[i]._id == id)
                 {
-                    processRef = _runningProcesses[i];
+                    processRef = ptr[i];
                     return true;
                 }
             }
@@ -185,20 +185,22 @@ namespace Tickle.Engine
 
         public static void UpdateAll()
         {
+            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
+
             for (int i = 0; i < _processCount; i++)
-                _runningProcesses[i].Update();
+                ptr[i].Update();
 
             int index = 0;
             while (index < _processCount)
             {
-                if (!_runningProcesses[index]._isDone)
+                if (!ptr[index]._isDone)
                 {
                     index++;
                     continue;
                 }
 
                 // Remove from list by swapping with last element and reduce count
-                _runningProcesses[index] = _runningProcesses[_processCount - 1];
+                ptr[index] = ptr[_processCount - 1];
                 _processCount--;
             }
         }
