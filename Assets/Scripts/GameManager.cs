@@ -81,7 +81,7 @@ public unsafe class Tickle<T> where T : unmanaged
         Lerp<T> process = default;
         if (!LerpManager<T>.TryGetRunningProcess(_lerpId, ref process)) 
             return true;
-        return process._isDone;
+        return process.IsDone;
     }
 
     private static TickleRunner _runner;

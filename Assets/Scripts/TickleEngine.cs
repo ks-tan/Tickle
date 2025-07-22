@@ -1,13 +1,16 @@
-//#define ENABLE_BURST
+#define ENABLE_BURST
 
 using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Unity.Collections;
 using System;
+
+#if ENABLE_BURST
 using Unity.Burst;
 using Unity.Jobs;
 using Unity.Mathematics;
+#endif
 
 namespace Tickle.Engine
 {
@@ -50,44 +53,43 @@ namespace Tickle.Engine
 
     public unsafe struct Lerp<T> where T : unmanaged
     {
-        public int _id;
-        public T* _target;
-        public T _start;
-        public T _end;
-        public float _duration;
-        public Ease.Type _easeType;
-
-        public float _elapsedTime;
-        public bool _isRunning;
-        public bool _isDone;
+        public int Id;
+        public T* Target;
+        public T Start;
+        public T End;
+        public float Duration;
+        public Ease.Type EaseType;
+        public float ElapsedTime;
+        public bool IsRunning;
+        public bool IsDone;
 
         public Lerp(int id, ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
-            _id = id;
-            _target = (T*)UnsafeUtility.AddressOf(ref target);
-            _start = start;
-            _end = end;
-            _elapsedTime = 0;
-            _duration = duration;
-            _easeType = ease;
-            _isRunning = false;
-            _isDone = false;
+            Id = id;
+            Target = (T*)UnsafeUtility.AddressOf(ref target);
+            Start = start;
+            End = end;
+            ElapsedTime = 0;
+            Duration = duration;
+            EaseType = ease;
+            IsRunning = false;
+            IsDone = false;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public void Update()
         {
-            if (!_isRunning) return;
-            if (_isDone) return;
-            if (_elapsedTime < _duration)
+            if (!IsRunning) return;
+            if (IsDone) return;
+            if (ElapsedTime < Duration)
             {
-                var value = LerpManager<T>.ApplyLerp(_start, _end, Ease.Apply(_elapsedTime / _duration, _easeType));
-                *_target = value;
-                _elapsedTime += Time.deltaTime;
+                var value = LerpManager<T>.ApplyLerp(Start, End, Ease.Apply(ElapsedTime / Duration, EaseType));
+                *Target = value;
+                ElapsedTime += Time.deltaTime;
                 return;
             }
-            *_target = _end;
-            _isDone = true;
+            *Target = End;
+            IsDone = true;
         }
     }
 
@@ -129,7 +131,7 @@ namespace Tickle.Engine
 
             for (int i = 0; i < count; i++)
             {
-                if (ptr[i]._id == id)
+                if (ptr[i].Id == id)
                 {
                     processRef = ptr[i];
                     return true;
@@ -156,7 +158,7 @@ namespace Tickle.Engine
             if (_createdProcessCount >= _createdProcesses.Length)
                 ResizeCreatedProcessesArray(_createdProcesses.Length * 2);
             _createdProcesses[_createdProcessCount++] = process;
-            return process._id;
+            return process.Id;
         }
 
         public static int Start(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
@@ -174,18 +176,18 @@ namespace Tickle.Engine
             {
                 var isCreatedProcessFound = TryGetCreatedProcess(id, ref process);
                 if (!isCreatedProcessFound) return;
-                process._isRunning = true;
-                process._isDone = false;
-                process._elapsedTime = 0;
+                process.IsRunning = true;
+                process.IsDone = false;
+                process.ElapsedTime = 0;
                 if (_runningProcessCount >= _runningProcesses.Length)
                     ResizeRunningProcessesArray(_runningProcesses.Length * 2);
                 _runningProcesses[_runningProcessCount++] = process;
             }
             else
             {
-                process._isRunning = true;
-                process._isDone = false;
-                process._elapsedTime = 0;
+                process.IsRunning = true;
+                process.IsDone = false;
+                process.ElapsedTime = 0;
             }
         }
 
@@ -194,7 +196,7 @@ namespace Tickle.Engine
             Lerp<T> process = default;
             var isFound = TryGetRunningProcess(id, ref process);
             if (!isFound) return;
-            process._isRunning = true;
+            process.IsRunning = true;
         }
 
         public static void Pause(int id)
@@ -202,7 +204,7 @@ namespace Tickle.Engine
             Lerp<T> process = default;
             var isFound = TryGetRunningProcess(id, ref process);
             if (!isFound) return;
-            process._isRunning = false;
+            process.IsRunning = false;
         }
 
         public static void Stop(int id)
@@ -210,7 +212,7 @@ namespace Tickle.Engine
             Lerp<T> process = default;
             var isFound = TryGetRunningProcess(id, ref process);
             if (!isFound) return;
-            process._isDone = true;
+            process.IsDone = true;
         }
 
         public static void Destroy(int id)
@@ -221,7 +223,7 @@ namespace Tickle.Engine
             int index = 0;
             while (index < _createdProcessCount)
             {
-                if (ptr[index]._id != id)
+                if (ptr[index].Id != id)
                 {
                     index++;
                     continue;
@@ -243,7 +245,7 @@ namespace Tickle.Engine
             int index = 0;
             while (index < _runningProcessCount)
             {
-                if (!ptr[index]._isDone)
+                if (!ptr[index].IsDone)
                 {
                     index++;
                     continue;
@@ -279,71 +281,72 @@ namespace Tickle.Engine
         [BurstCompile]
         public struct LerpUpdateParallelJob : IJobParallelFor
         {
-            public float DeltaTime;
+            [NativeDisableParallelForRestriction]
             public NativeArray<Lerp<T>> Processes;
+            public float DeltaTime;
             public LerpType TypeLerp;
 
             public void Execute(int i)
             {
                 Lerp<T> process = Processes[i];
-                if (!process._isRunning || process._isDone) return;
+                if (!process.IsRunning || process.IsDone) return;
 
-                if (process._elapsedTime < process._duration)
+                if (process.ElapsedTime < process.Duration)
                 {
-                    float t = process._elapsedTime / process._duration;
-                    t = Ease.Apply(t, process._easeType);
+                    float t = process.ElapsedTime / process.Duration;
+                    t = Ease.Apply(t, process.EaseType);
 
                     // Directly write to target memory using the correct type
                     if (TypeLerp == LerpType.Float)
                     {
-                        float start = UnsafeUtility.ReadArrayElement<float>(&process._start, 0);
-                        float end = UnsafeUtility.ReadArrayElement<float>(&process._end, 0);
+                        float start = UnsafeUtility.ReadArrayElement<float>(&process.Start, 0);
+                        float end = UnsafeUtility.ReadArrayElement<float>(&process.End, 0);
                         float result = math.lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
                     }
                     else if (TypeLerp == LerpType.Color)
                     {
-                        Color start = UnsafeUtility.ReadArrayElement<Color>(&process._start, 0);
-                        Color end = UnsafeUtility.ReadArrayElement<Color>(&process._end, 0);
+                        Color start = UnsafeUtility.ReadArrayElement<Color>(&process.Start, 0);
+                        Color end = UnsafeUtility.ReadArrayElement<Color>(&process.End, 0);
                         Color result = Color.Lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
                     }
                     else if (TypeLerp == LerpType.Vec2)
                     {
-                        Vector2 start = UnsafeUtility.ReadArrayElement<Vector2>(&process._start, 0);
-                        Vector2 end = UnsafeUtility.ReadArrayElement<Vector2>(&process._end, 0);
+                        Vector2 start = UnsafeUtility.ReadArrayElement<Vector2>(&process.Start, 0);
+                        Vector2 end = UnsafeUtility.ReadArrayElement<Vector2>(&process.End, 0);
                         Vector2 result = Vector2.Lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
                     }
                     else if (TypeLerp == LerpType.Vec3)
                     {
-                        Vector3 start = UnsafeUtility.ReadArrayElement<Vector3>(&process._start, 0);
-                        Vector3 end = UnsafeUtility.ReadArrayElement<Vector3>(&process._end, 0);
+                        Vector3 start = UnsafeUtility.ReadArrayElement<Vector3>(&process.Start, 0);
+                        Vector3 end = UnsafeUtility.ReadArrayElement<Vector3>(&process.End, 0);
                         Vector3 result = Vector3.Lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
                     }
                     else if (TypeLerp == LerpType.Vec4)
                     {
-                        Vector4 start = UnsafeUtility.ReadArrayElement<Vector4>(&process._start, 0);
-                        Vector4 end = UnsafeUtility.ReadArrayElement<Vector4>(&process._end, 0);
+                        Vector4 start = UnsafeUtility.ReadArrayElement<Vector4>(&process.Start, 0);
+                        Vector4 end = UnsafeUtility.ReadArrayElement<Vector4>(&process.End, 0);
                         Vector4 result = Vector4.Lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
                     }
                     else if (TypeLerp == LerpType.Quat)
                     {
-                        Quaternion start = UnsafeUtility.ReadArrayElement<Quaternion>(&process._start, 0);
-                        Quaternion end = UnsafeUtility.ReadArrayElement<Quaternion>(&process._end, 0);
+                        Quaternion start = UnsafeUtility.ReadArrayElement<Quaternion>(&process.Start, 0);
+                        Quaternion end = UnsafeUtility.ReadArrayElement<Quaternion>(&process.End, 0);
                         Quaternion result = Quaternion.Lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process._target, 0, result);
+                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
                     }
 
-                    process._elapsedTime += DeltaTime;
+                    process.ElapsedTime += DeltaTime;
                 }
                 else
                 {
                     // Direct copy for completion
-                    UnsafeUtility.CopyStructureToPtr(ref process._end, process._target);
-                    process._isDone = true;
+                    UnsafeUtility.CopyStructureToPtr(ref process.End, process.Target);
+                    process.IsDone = true;
                 }
 
                 Processes[i] = process;
@@ -388,14 +391,14 @@ namespace Tickle.Engine
         {
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
             for (int i = 0; i < _runningProcessCount; i++)
-                if (ptr[i]._target == target)
-                    ptr[i]._isDone = true;
+                if (ptr[i].Target == target)
+                    ptr[i].IsDone = true;
 
             ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_createdProcesses);
             int index = 0;
             while (index < _createdProcessCount)
             {
-                if (ptr[index]._target == target)
+                if (ptr[index].Target == target)
                 {
                     // Remove from list by swapping with last element and reduce count
                     ptr[index] = ptr[_createdProcessCount - 1];
@@ -433,7 +436,9 @@ namespace Tickle.Engine
 
     public unsafe static class Ease
     {
+#if ENABLE_BURST
         [BurstCompile]
+#endif
         public static float Apply(float t, Type type)
         {
             if (type == Type.None) return None(t);
