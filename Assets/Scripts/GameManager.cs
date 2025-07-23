@@ -2,7 +2,6 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using Tickle.Engine;
-using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
 public unsafe class GameManager : MonoBehaviour
@@ -23,26 +22,8 @@ public unsafe class GameManager : MonoBehaviour
     private void TickleTest()
     {
         for (int i = 0; i < 10000; i++)
-        {
-            _values[i] = 0;
-            var setter = new FloatSetter { Index = i, Array = _values };
-            new Tickle<float>(
-                setter.Set,
-                0,
-                10,
-                duration: 10,
-                Ease.Type.None,
-                () => Debug.Log("DONE")
-            ).Start();
-        }
+            _values[i].Lerp(0, 10, 10).Start();
     }
-    struct FloatSetter
-    {
-        public int Index;
-        public float[] Array;
-        public void Set(float value) => Array[Index] = value;
-    }
-
 
     // 200+ fps
     private void LerpTest()
@@ -77,16 +58,12 @@ public unsafe class GameManager : MonoBehaviour
 public unsafe class Tickle<T> where T : unmanaged
 {
     private int _lerpId;
-    private T _value;
-    private Action<T> _setter;
     private Action _onComplete;
 
-    public Tickle(Action<T> setter, T start, T end, float duration, Ease.Type ease, Action oncomplete)
+    public Tickle(ref T target, T start, T end, float duration, Ease.Type ease, Action oncomplete)
     {
         if (_runner == null) SetupRunner();
-        _lerpId = LerpManager<T>.Create(ref _value, start, end, duration, ease);
-        _value = start;
-        _setter = setter;
+        _lerpId = LerpManager<T>.Create(ref target, start, end, duration, ease);
         _onComplete = oncomplete;
     }
 
@@ -99,10 +76,9 @@ public unsafe class Tickle<T> where T : unmanaged
 
     public bool IsDone()
     {
-        Lerp<T> process = default;
-        if (!LerpManager<T>.TryGetRunningProcess(_lerpId, ref process)) 
-            return true;
-        return process.IsDone;
+        // TODO: The source of the bottleneck. If only we can hold a reference/
+        // pointer to the Lerp<T> running process so we can directly check for IsDone
+        return false;
     }
 
     private static TickleRunner _runner;
@@ -121,13 +97,18 @@ public unsafe class Tickle<T> where T : unmanaged
     {
         foreach(var tickle in _tickles)
         {
-            tickle._setter(tickle._value);
             if (!tickle.IsDone()) continue;
             tickle._onComplete?.Invoke();
         }
     }
 
-    ~Tickle() => LerpManager<T>.CancelAllForTarget(UnsafeUtility.AddressOf(ref _value));
+    //~Tickle() => LerpManager<T>.CancelAllForTarget(UnsafeUtility.AddressOf(ref _target));
+}
+
+public static class Tickler
+{
+    public static Tickle<float> Lerp(this ref float Float, float start, float end, float duration)
+    => new Tickle<float>(ref Float, start, end, duration, Ease.Type.None, null);
 }
 
 public class TickleRunner : MonoBehaviour
