@@ -48,10 +48,7 @@ namespace Tickle
         private static void SetupRunner()
         {
             if (TickleRunner.Instance != null) return;
-            var go = new GameObject("[TickleRunner]");
-            go.AddComponent<TickleRunner>();
-            go.hideFlags = HideFlags.HideAndDontSave;
-            UnityEngine.Object.DontDestroyOnLoad(go);
+            new GameObject("[TickleRunner]").AddComponent<TickleRunner>();
         }
 
         public static void UpdateAll()

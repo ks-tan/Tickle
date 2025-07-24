@@ -67,6 +67,16 @@ namespace Tickle.Lerp
             LerpManager<Vector4>.Cleanup();
             LerpManager<Quaternion>.Cleanup();
         }
+
+        private void OnApplicationQuit()
+        {
+            LerpManager<float>.Cleanup();
+            LerpManager<Color>.Cleanup();
+            LerpManager<Vector2>.Cleanup();
+            LerpManager<Vector3>.Cleanup();
+            LerpManager<Vector4>.Cleanup();
+            LerpManager<Quaternion>.Cleanup();
+        }
     }
 
     public unsafe struct Lerp<T> where T : unmanaged
@@ -142,12 +152,7 @@ namespace Tickle.Lerp
         private static void Setup()
         {
             if (LerpRunner.Instance == null)
-            {
-                var go = new GameObject("[LerpRunner]");
-                go.AddComponent<LerpRunner>();
-                go.hideFlags = HideFlags.HideAndDontSave;
-                UnityEngine.Object.DontDestroyOnLoad(go);
-            }
+                new GameObject("[LerpRunner]").AddComponent<LerpRunner>();
 
             // TODO: Add more types here if needed
             if (typeof(T) == typeof(float)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Float;
@@ -448,6 +453,12 @@ namespace Tickle.Lerp
             // Release NativeArray memory
             if (_runningProcesses.IsCreated) _runningProcesses.Dispose(); 
             if (_createdProcesses.IsCreated) _createdProcesses.Dispose();
+
+            _runningProcesses = default;
+            _createdProcesses = default;
+            _runningProcessCount = 0;
+            _createdProcessCount = 0;
+            _rollingId = 0;
         }
     }
 
