@@ -2,10 +2,12 @@ using System.Collections.Generic;
 using System;
 using Tickle.Lerp;
 using UnityEngine;
+using UnityEditor.PackageManager;
+using Unity.VisualScripting;
 
 namespace Tickle
 {
-    public class Tickle<T> where T : unmanaged
+    public class Tickle<T> : ITickle where T : unmanaged
     {
         private int _lerpId;
         private bool _isDone;
@@ -19,6 +21,8 @@ namespace Tickle
         // when possible.
         private T _target;
         private Action<T> _setter;
+
+        public bool IsDone => _isDone;
 
         public Tickle(ref T target, T start, T end, float duration, Ease.Type ease, Action oncomplete)
         {
@@ -38,15 +42,13 @@ namespace Tickle
         public void Start()
         {
             LerpManager<T>.Start(_lerpId);
-            if (!_tickles.Contains(this))
-                _tickles.Add(this);
+            TickleRunner.AddTickle(this);
         }
 
         public void Stop()
         {
             LerpManager<T>.Stop(_lerpId);
-            if (_tickles.Contains(this))
-                _tickles.Remove(this);
+            TickleRunner.RemoveTickle(this);
         }
 
         public void Pause()
@@ -59,39 +61,27 @@ namespace Tickle
             LerpManager<T>.Resume(_lerpId);
         }
 
-        private static List<Tickle<T>> _toRemove = new List<Tickle<T>>();
-        private static List<Tickle<T>> _tickles = new List<Tickle<T>>();
-
         private static void SetupRunner()
         {
             if (TickleRunner.Instance != null) return;
             new GameObject("[TickleRunner]").AddComponent<TickleRunner>();
         }
 
-        public static void UpdateAll()
+        public void Update()
         {
-            foreach (var tickle in _tickles)
+            try
             {
-                try
-                {
-                    tickle._setter?.Invoke(tickle._target);
-                }
-                catch
-                {
-                    Debug.LogError("Error invoking target setter. Target might have been destroyed.");
-                    LerpManager<T>.Destroy(tickle._lerpId);
-                    tickle._isDone = true;
-                }
-
-                if (!tickle._isDone) continue;
-                _toRemove.Add(tickle);
-                tickle._onComplete?.Invoke();
+                _setter?.Invoke(_target);
             }
-
-            foreach (var tickle in _toRemove)
-                _tickles.Remove(tickle);
-            _toRemove.Clear();
+            catch
+            {
+                Debug.LogError("Error invoking target setter. Target might have been destroyed.");
+                LerpManager<T>.Destroy(_lerpId);
+                _isDone = true;
+            }
         }
+
+        public void OnComplete() => _onComplete?.Invoke();
 
         ~Tickle() => LerpManager<T>.Destroy(_lerpId);
     }
@@ -99,6 +89,9 @@ namespace Tickle
     public class TickleRunner : MonoBehaviour
     {
         public static TickleRunner Instance;
+
+        private static List<ITickle> _toRemove = new List<ITickle>();
+        private static List<ITickle> _tickles = new List<ITickle>();
 
         private void Awake()
         {
@@ -108,14 +101,37 @@ namespace Tickle
 
         private void Update()
         {
-            // TODO: Add more types here if needed
-            Tickle<float>.UpdateAll();
-            Tickle<Color>.UpdateAll();
-            Tickle<Vector2>.UpdateAll();
-            Tickle<Vector3>.UpdateAll();
-            Tickle<Vector4>.UpdateAll();
-            Tickle<Quaternion>.UpdateAll();
+            foreach (var tickle in _tickles)
+            {
+                tickle.Update();
+                if (!tickle.IsDone) continue;
+                _toRemove.Add(tickle);
+                tickle.OnComplete();
+            }
+
+            foreach (var tickle in _toRemove)
+                _tickles.Remove(tickle);
+            _toRemove.Clear();
         }
+
+        public static void AddTickle(ITickle tickle)
+        {
+            if (_tickles.Contains(tickle)) return;
+            _tickles.Add(tickle);
+        }
+
+        public static void RemoveTickle(ITickle tickle)
+        {
+            if (!_tickles.Contains(tickle)) return;
+            _tickles.Remove(tickle);
+        }
+    }
+
+    public interface ITickle
+    {
+        bool IsDone { get; }
+        void Update();
+        void OnComplete();
     }
 
     public static class Tickler
