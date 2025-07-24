@@ -42,6 +42,23 @@ namespace Tickle
                 _tickles.Add(this);
         }
 
+        public void Stop()
+        {
+            LerpManager<T>.Stop(_lerpId);
+            if (_tickles.Contains(this))
+                _tickles.Remove(this);
+        }
+
+        public void Pause()
+        {
+            LerpManager<T>.Pause(_lerpId);
+        }
+
+        public void Resume()
+        {
+            LerpManager<T>.Resume(_lerpId);
+        }
+
         private static List<Tickle<T>> _toRemove = new List<Tickle<T>>();
         private static List<Tickle<T>> _tickles = new List<Tickle<T>>();
 
@@ -63,6 +80,7 @@ namespace Tickle
                 {
                     Debug.LogError("Error invoking target setter. Target might have been destroyed.");
                     LerpManager<T>.Destroy(tickle._lerpId);
+                    tickle._isDone = true;
                 }
 
                 if (!tickle._isDone) continue;
