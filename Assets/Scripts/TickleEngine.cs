@@ -1,4 +1,4 @@
-//#define ENABLE_BURST
+#define ENABLE_BURST
 
 using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;

@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using Tickle.Engine;
 using UnityEngine;
 
@@ -64,7 +63,7 @@ public unsafe class Tickle<T> where T : unmanaged
 
     public Tickle(ref T target, T start, T end, float duration, Ease.Type ease, Action oncomplete)
     {
-        if (_runner == null) SetupRunner();
+        if (TickleRunner.Instance == null) SetupRunner();
         _lerpId = LerpManager<T>.Create(ref target, ref _isDone, start, end, duration, ease);
         _onComplete = oncomplete;
     }
@@ -76,26 +75,30 @@ public unsafe class Tickle<T> where T : unmanaged
             _tickles.Add(this);
     }
 
-    private static TickleRunner _runner;
+    private static List<Tickle<T>> _toRemove = new List<Tickle<T>>();
     private static List<Tickle<T>> _tickles = new List<Tickle<T>>();
 
     private static void SetupRunner()
     {
-        if (_runner != null) return;
+        if (TickleRunner.Instance != null) return;
         var go = new GameObject("[TickleRunner]");
+        go.AddComponent<TickleRunner>();
         go.hideFlags = HideFlags.HideAndDontSave;
         UnityEngine.Object.DontDestroyOnLoad(go);
-        _runner = go.AddComponent<TickleRunner>();
     }
 
-    // TODO: Remove tickle from list when done!
     public static void UpdateAll()
     {
-        foreach(var tickle in _tickles.ToList())
+        foreach(var tickle in _tickles)
         {
             if (!tickle._isDone) continue;
+            _toRemove.Add(tickle);
             tickle._onComplete?.Invoke();
         }
+
+        foreach (var tickle in _toRemove)
+            _tickles.Remove(tickle);
+        _toRemove.Clear();
     }
 
     //~Tickle() => LerpManager<T>.CancelAllForTarget(UnsafeUtility.AddressOf(ref _target));
@@ -104,12 +107,19 @@ public unsafe class Tickle<T> where T : unmanaged
 public static class Tickler
 {
     public static Tickle<float> Lerp(this ref float Float, float start, float end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
-    => new Tickle<float>(ref Float, start, end, duration, ease, onComplete);
+        => new Tickle<float>(ref Float, start, end, duration, ease, onComplete);
 }
 
-// TODO: Make this a singleton!
 public class TickleRunner : MonoBehaviour
 {
+    public static TickleRunner Instance;
+
+    private void Awake()
+    {
+        if (Instance == null)
+            Instance = this;
+    }
+
     private void Update()
     {
         // TODO: Add more types here if needed
