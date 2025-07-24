@@ -19,8 +19,12 @@ public class Tickle<T> where T : unmanaged
     private bool _isDone;
     private Action _onComplete;
 
-    // This pair of properties come together. Their use is optional.
-    // TODO: Put these in a struct for clarity
+    // This pair of properties will only be used when we are trying to lerp
+    // a target which we cannot get a ref handle on, for e.g. transform.localScale.
+    // _target will act as a proxy for the target's value, and setter will define
+    // how we may assign the value to the target.
+    // Because delegates allocates to GC, we may ignore/avoid these properties
+    // when possible.
     private T _target;
     private Action<T> _setter;
 
@@ -62,7 +66,16 @@ public class Tickle<T> where T : unmanaged
     {
         foreach(var tickle in _tickles)
         {
-            tickle._setter?.Invoke(tickle._target);
+            try 
+            { 
+                tickle._setter?.Invoke(tickle._target); 
+            }
+            catch 
+            { 
+                Debug.LogError("Error invoking target setter. Target might have been destroyed.");
+                LerpManager<T>.Destroy(tickle._lerpId);
+            }
+
             if (!tickle._isDone) continue;
             _toRemove.Add(tickle);
             tickle._onComplete?.Invoke();
@@ -73,7 +86,7 @@ public class Tickle<T> where T : unmanaged
         _toRemove.Clear();
     }
 
-    //~Tickle() => LerpManager<T>.CancelAllForTarget(UnsafeUtility.AddressOf(ref _target));
+    ~Tickle() => LerpManager<T>.Destroy(_lerpId);
 }
 
 public static class Tickler

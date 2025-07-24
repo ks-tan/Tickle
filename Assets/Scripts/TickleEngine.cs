@@ -430,28 +430,6 @@ namespace Tickle.Engine
             array = newArray;
         }
 
-        // This cleans up leaky memory caused by processes which the owner for _target has been destroyed
-        public static void CancelAllForTarget(void* target)
-        {
-            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
-            for (int i = 0; i < _runningProcessCount; i++)
-                if (ptr[i].Target == target)
-                    ptr[i].SetIsDone(true);
-
-            ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_createdProcesses);
-            int index = 0;
-            while (index < _createdProcessCount)
-            {
-                if (ptr[index].Target == target)
-                {
-                    // Remove from list by swapping with last element and reduce count
-                    ptr[index] = ptr[_createdProcessCount - 1];
-                    _createdProcessCount--;
-                }
-                else index++;
-            }
-        }
-
         public static T ApplyLerp(T a, T b, float t) => _lerp(a, b, t);
         
         private static unsafe class LerpFunc
