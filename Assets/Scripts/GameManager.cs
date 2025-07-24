@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using Tickle.Engine;
 using UnityEngine;
 
@@ -22,7 +23,7 @@ public unsafe class GameManager : MonoBehaviour
     private void TickleTest()
     {
         for (int i = 0; i < 10000; i++)
-            _values[i].Lerp(0, 10, 10).Start();
+            _values[i].Lerp(0, 10, 10, Ease.Type.None, () => Debug.Log("ISDONE")).Start();
     }
 
     // 200+ fps
@@ -58,12 +59,13 @@ public unsafe class GameManager : MonoBehaviour
 public unsafe class Tickle<T> where T : unmanaged
 {
     private int _lerpId;
+    private bool _isDone;
     private Action _onComplete;
 
     public Tickle(ref T target, T start, T end, float duration, Ease.Type ease, Action oncomplete)
     {
         if (_runner == null) SetupRunner();
-        _lerpId = LerpManager<T>.Create(ref target, start, end, duration, ease);
+        _lerpId = LerpManager<T>.Create(ref target, ref _isDone, start, end, duration, ease);
         _onComplete = oncomplete;
     }
 
@@ -72,13 +74,6 @@ public unsafe class Tickle<T> where T : unmanaged
         LerpManager<T>.Start(_lerpId);
         if (!_tickles.Contains(this))
             _tickles.Add(this);
-    }
-
-    public bool IsDone()
-    {
-        // TODO: The source of the bottleneck. If only we can hold a reference/
-        // pointer to the Lerp<T> running process so we can directly check for IsDone
-        return false;
     }
 
     private static TickleRunner _runner;
@@ -93,11 +88,12 @@ public unsafe class Tickle<T> where T : unmanaged
         _runner = go.AddComponent<TickleRunner>();
     }
 
+    // TODO: Remove tickle from list when done!
     public static void UpdateAll()
     {
-        foreach(var tickle in _tickles)
+        foreach(var tickle in _tickles.ToList())
         {
-            if (!tickle.IsDone()) continue;
+            if (!tickle._isDone) continue;
             tickle._onComplete?.Invoke();
         }
     }
@@ -107,10 +103,11 @@ public unsafe class Tickle<T> where T : unmanaged
 
 public static class Tickler
 {
-    public static Tickle<float> Lerp(this ref float Float, float start, float end, float duration)
-    => new Tickle<float>(ref Float, start, end, duration, Ease.Type.None, null);
+    public static Tickle<float> Lerp(this ref float Float, float start, float end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
+    => new Tickle<float>(ref Float, start, end, duration, ease, onComplete);
 }
 
+// TODO: Make this a singleton!
 public class TickleRunner : MonoBehaviour
 {
     private void Update()

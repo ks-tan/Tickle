@@ -1,4 +1,4 @@
-#define ENABLE_BURST
+//#define ENABLE_BURST
 
 using System.Runtime.CompilerServices;
 using Unity.Collections.LowLevel.Unsafe;
@@ -80,6 +80,7 @@ namespace Tickle.Engine
         public float ElapsedTime;
         public bool IsRunning;
         public bool IsDone;
+        private bool* _doneHandle;
 
         public Lerp(int id, ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
@@ -92,6 +93,19 @@ namespace Tickle.Engine
             EaseType = ease;
             IsRunning = false;
             IsDone = false;
+            _doneHandle = null;
+        }
+
+        public void BindDoneHandle(ref bool doneHandle)
+        {
+            _doneHandle = (bool*)UnsafeUtility.AddressOf(ref doneHandle);
+        }
+
+        public void SetIsDone(bool isDone)
+        {
+            IsDone = isDone;
+            if (_doneHandle != null)
+                *_doneHandle = isDone;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -107,7 +121,7 @@ namespace Tickle.Engine
                 return;
             }
             *Target = End;
-            IsDone = true;
+            SetIsDone(true);
         }
     }
 
@@ -116,11 +130,14 @@ namespace Tickle.Engine
         private static int _rollingId;
         private static delegate*<T, T, float, T> _lerp;
 
-        private static int _runningProcessCount;
-        private static NativeArray<Lerp<T>> _runningProcesses;
-
+        // Note: _createdProcesses and _runningProcesses do not hold exact references
+        // of the same Lerp<T> data, but copies. When a process is only created but
+        // not running, we only check it from the _createdProcesses array. If a
+        // process is running, we only check it from the _runningProcesses array.
         private static int _createdProcessCount;
+        private static int _runningProcessCount;
         private static NativeArray<Lerp<T>> _createdProcesses;
+        private static NativeArray<Lerp<T>> _runningProcesses;
 
         private static void Setup()
         {
@@ -169,15 +186,22 @@ namespace Tickle.Engine
             return TryGetProcess(id, _createdProcesses, _createdProcessCount, ref processRef);
         }
 
-        public static int Create(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
+        public static int Create(ref T target, ref bool doneHandle, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
             if (!_createdProcesses.IsCreated)
                 Setup();
             var process = new Lerp<T>(_rollingId++, ref target, start, end, duration, ease);
+            process.BindDoneHandle(ref doneHandle);
             if (_createdProcessCount >= _createdProcesses.Length)
                 ResizeCreatedProcessesArray(_createdProcesses.Length * 2);
             _createdProcesses[_createdProcessCount++] = process;
             return process.Id;
+        }
+
+        public static int Create(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
+        {
+            bool dummy = false;
+            return Create(ref target, ref dummy, start, end, duration, ease);
         }
 
         public static int Start(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
@@ -196,7 +220,7 @@ namespace Tickle.Engine
                 var isCreatedProcessFound = TryGetCreatedProcess(id, ref process);
                 if (!isCreatedProcessFound) return;
                 process.IsRunning = true;
-                process.IsDone = false;
+                process.SetIsDone(false);
                 process.ElapsedTime = 0;
                 if (_runningProcessCount >= _runningProcesses.Length)
                     ResizeRunningProcessesArray(_runningProcesses.Length * 2);
@@ -205,7 +229,7 @@ namespace Tickle.Engine
             else
             {
                 process.IsRunning = true;
-                process.IsDone = false;
+                process.SetIsDone(false);
                 process.ElapsedTime = 0;
             }
         }
@@ -231,7 +255,7 @@ namespace Tickle.Engine
             Lerp<T> process = default;
             var isFound = TryGetRunningProcess(id, ref process);
             if (!isFound) return;
-            process.IsDone = true;
+            process.SetIsDone(true);
         }
 
         public static void Destroy(int id)
@@ -366,7 +390,7 @@ namespace Tickle.Engine
                 {
                     // Direct copy for completion
                     UnsafeUtility.CopyStructureToPtr(ref process.End, process.Target);
-                    process.IsDone = true;
+                    process.SetIsDone(true);
                 }
 
                 Processes[i] = process;
@@ -412,7 +436,7 @@ namespace Tickle.Engine
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
             for (int i = 0; i < _runningProcessCount; i++)
                 if (ptr[i].Target == target)
-                    ptr[i].IsDone = true;
+                    ptr[i].SetIsDone(true);
 
             ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_createdProcesses);
             int index = 0;
