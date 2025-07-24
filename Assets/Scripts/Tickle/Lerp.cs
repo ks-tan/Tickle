@@ -12,7 +12,7 @@ using Unity.Jobs;
 using Unity.Mathematics;
 #endif
 
-namespace Tickle.Engine
+namespace Tickle.Lerp
 {
     public class LerpRunner : MonoBehaviour
     {
@@ -451,7 +451,7 @@ namespace Tickle.Engine
         }
     }
 
-    public unsafe static class Ease
+    public static class Ease
     {
 #if ENABLE_BURST
         [BurstCompile]
