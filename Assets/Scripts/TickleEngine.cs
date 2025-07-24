@@ -16,6 +16,14 @@ namespace Tickle.Engine
 {
     public class LerpRunner : MonoBehaviour
     {
+        public static LerpRunner Instance { get; private set; }
+
+        private void Awake()
+        {
+            if (Instance == null)
+                Instance = this;
+        }
+
         private void Update()
         {
             // TODO: Add more types here if needed
@@ -105,7 +113,6 @@ namespace Tickle.Engine
 
     public static unsafe class LerpManager<T> where T : unmanaged
     {
-        private static LerpRunner _runner;
         private static int _rollingId;
         private static delegate*<T, T, float, T> _lerp;
 
@@ -115,13 +122,15 @@ namespace Tickle.Engine
         private static int _createdProcessCount;
         private static NativeArray<Lerp<T>> _createdProcesses;
 
-        private static void SetupRunner()
+        private static void Setup()
         {
-            if (_runner != null) return; 
-            var go = new GameObject("[LerpRunner]");
-            go.hideFlags = HideFlags.HideAndDontSave;
-            UnityEngine.Object.DontDestroyOnLoad(go);
-            _runner = go.AddComponent<LerpRunner>();
+            if (LerpRunner.Instance == null)
+            {
+                var go = new GameObject("[LerpRunner]");
+                go.AddComponent<LerpRunner>();
+                go.hideFlags = HideFlags.HideAndDontSave;
+                UnityEngine.Object.DontDestroyOnLoad(go);
+            }
 
             // TODO: Add more types here if needed
             if (typeof(T) == typeof(float)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Float;
@@ -162,8 +171,8 @@ namespace Tickle.Engine
 
         public static int Create(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
         {
-            if (_runner == null)
-                SetupRunner();
+            if (!_createdProcesses.IsCreated)
+                Setup();
             var process = new Lerp<T>(_rollingId++, ref target, start, end, duration, ease);
             if (_createdProcessCount >= _createdProcesses.Length)
                 ResizeCreatedProcessesArray(_createdProcesses.Length * 2);
@@ -246,6 +255,8 @@ namespace Tickle.Engine
 
         public static void UpdateAll()
         {
+            if (!_runningProcesses.IsCreated) return;
+
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
 
             for (int i = 0; i < _runningProcessCount; i++)
