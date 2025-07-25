@@ -3,10 +3,20 @@ using UnityEngine;
 
 public unsafe class GameManager : MonoBehaviour
 {
-    [SerializeField] private Transform _testTransform;
+    private Transform[] _transforms = new Transform[1000];
 
     private void Start()
     {
-        _testTransform.LerpScale(1, 3, 10).Start();
+        for(int i = 0; i < _transforms.Length; i++)
+        {
+            var obj = new GameObject();
+            obj.transform.LerpScale(1, 10, 10).Start();
+            _transforms[i] = obj.transform;
+        }
+    }
+
+    private void Update()
+    {
+        Debug.Log(_transforms[90].localScale);
     }
 }
