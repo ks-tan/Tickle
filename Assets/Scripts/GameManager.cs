@@ -3,20 +3,18 @@ using UnityEngine;
 
 public unsafe class GameManager : MonoBehaviour
 {
-    private Transform[] _transforms = new Transform[1000];
+    private float[] _values = new float[64000];
 
     private void Start()
     {
-        for(int i = 0; i < _transforms.Length; i++)
+        for(int i = 0; i < _values.Length; i++)
         {
-            var obj = new GameObject();
-            obj.transform.LerpScale(1, 10, 10).Start();
-            _transforms[i] = obj.transform;
+            _values[i] = 0;
+            _values[i].Lerp(0, 10, 10).Start();
         }
     }
 
     private void Update()
     {
-        Debug.Log(_transforms[90].localScale);
     }
 }

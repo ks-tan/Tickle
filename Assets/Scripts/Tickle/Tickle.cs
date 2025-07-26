@@ -96,6 +96,8 @@ namespace Tickle
     {
         public static TickleRunner Instance;
 
+        // TODO: Implement object pooling to avoid GCs
+        // TODO: Implement LitMotion's SparseSet for O(1) search, insert and removals
         private static List<ITickle> _toRemove = new List<ITickle>();
         private static List<ITickle> _tickles = new List<ITickle>();
 

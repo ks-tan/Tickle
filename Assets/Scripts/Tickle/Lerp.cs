@@ -140,6 +140,9 @@ namespace Tickle.Lerp
         private static int _rollingId;
         private static delegate*<T, T, float, T> _lerp;
 
+        public enum LerpType { Float, Color, Vec2, Vec3, Vec4, Quat }
+        private static LerpType _lerpType;
+        
         // Note: _createdProcesses and _runningProcesses do not hold exact references
         // of the same Lerp<T> data, but copies. When a process is only created but
         // not running, we only check it from the _createdProcesses array. If a
@@ -161,6 +164,13 @@ namespace Tickle.Lerp
             else if (typeof(T) == typeof(Vector3)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Vec3;
             else if (typeof(T) == typeof(Vector4)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Vec4;
             else if (typeof(T) == typeof(Quaternion)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Quat;
+
+            if (typeof(T) == typeof(float)) _lerpType = LerpType.Float;
+            else if (typeof(T) == typeof(Color)) _lerpType = LerpType.Color;
+            else if (typeof(T) == typeof(Vector2)) _lerpType = LerpType.Vec2;
+            else if (typeof(T) == typeof(Vector3)) _lerpType = LerpType.Vec3;
+            else if (typeof(T) == typeof(Vector4)) _lerpType = LerpType.Vec4;
+            else if (typeof(T) == typeof(Quaternion)) _lerpType = LerpType.Quat;
 
             _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
             _createdProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
@@ -307,21 +317,14 @@ namespace Tickle.Lerp
         }
 
 #if ENABLE_BURST
-        public enum LerpType { Float, Color, Vec2, Vec3, Vec4, Quat }
 
         [BurstCompile]
         public static void BurstUpdateAll()
         {
-            var type = LerpType.Float;
-            if (typeof(T) == typeof(Color)) type = LerpType.Color;
-            if (typeof(T) == typeof(Vector2)) type = LerpType.Vec2;
-            if (typeof(T) == typeof(Vector3)) type = LerpType.Vec3;
-            if (typeof(T) == typeof(Vector4)) type = LerpType.Vec4;
-            if (typeof(T) == typeof(Quaternion)) type = LerpType.Quat;
             var job = new LerpUpdateParallelJob() {
                 DeltaTime = Time.deltaTime,
                 Processes = _runningProcesses,
-                TypeLerp = type
+                TypeLerp = _lerpType
             };
             JobHandle handle = job.Schedule(_runningProcessCount, 64); // 64 = batch size
             handle.Complete();
@@ -427,6 +430,8 @@ namespace Tickle.Lerp
             ResizeProcessesArray(newSize, ref _runningProcesses, _runningProcessCount);
         }
 
+        // TODO: Instead of resizing, look into implementing LitMotion's SparseSet
+        // for O(1) search, insert and removals
         private static void ResizeProcessesArray(int newSize, ref NativeArray<Lerp<T>> array, int elementsToCopy)
         {
             var newArray = new NativeArray<Lerp<T>>(newSize, Allocator.Persistent, NativeArrayOptions.ClearMemory);
