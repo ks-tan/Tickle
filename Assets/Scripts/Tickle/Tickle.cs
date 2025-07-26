@@ -2,23 +2,25 @@ using System.Collections.Generic;
 using System;
 using Tickle.Lerp;
 using UnityEngine;
-using Unity.Collections.LowLevel.Unsafe;
 
 namespace Tickle
 {
-    public class Tickle<T> : ITickle where T : unmanaged
+    public partial class Tickle<T> : ITickle where T : unmanaged
     {
         private int _lerpId;
         private bool _isDone;
+        private float _duration;
         private Action _onComplete;
 
         protected T _value;
         public bool IsDone => _isDone;
+        public float Duration => _duration;
 
         public Tickle(T start, T end, float duration, Ease.Type ease, Action onComplete)
         {
             if (TickleRunner.Instance == null) SetupRunner();
             _lerpId = LerpManager<T>.Create(ref _value, ref _isDone, start, end, duration, ease);
+            _duration = duration;
             _onComplete = onComplete;
         }
 
@@ -45,51 +47,23 @@ namespace Tickle
             LerpManager<T>.Resume(_lerpId);
         }
 
+        public virtual void Update() { }
+
+        public void InvokeOnComplete() => _onComplete?.Invoke();
+
+        public ITickle OnComplete(Action onComplete)
+        {
+            _onComplete += onComplete;
+            return this;
+        }
+
+        ~Tickle() => LerpManager<T>.Destroy(_lerpId);
+
         private static void SetupRunner()
         {
             if (TickleRunner.Instance != null) return;
             new GameObject("[TickleRunner]").AddComponent<TickleRunner>();
         }
-
-        public virtual void Update() { }
-
-        public void OnComplete() => _onComplete?.Invoke();
-
-        ~Tickle() => LerpManager<T>.Destroy(_lerpId);
-    }
-
-    public unsafe class TickleSimple<T> : Tickle<T> where T : unmanaged
-    {
-        private T* _target;
-
-        public TickleSimple(ref T target, T start, T end, float duration, Ease.Type ease, Action onComplete) : 
-            base(start, end, duration, ease, onComplete) => _target = (T*)UnsafeUtility.AddressOf(ref target);
-
-        public override void Update() => *_target = _value;
-    }
-
-    public class TickleTransform<T> : Tickle<T> where T : unmanaged
-    {
-        protected Transform _transform;
-        public TickleTransform(Transform transform, T start, T end, float duration, Ease.Type ease, Action onComplete) : base(start, end, duration, ease, onComplete) => _transform = transform;
-    }
-
-    public class TickleTransformPosition<T> : TickleTransform<Vector3>
-    {
-        public TickleTransformPosition(Transform transform, Vector3 start, Vector3 end, float duration, Ease.Type ease, Action onComplete) : base(transform, start, end, duration, ease, onComplete) { }
-        public override void Update() => _transform.position = _value;
-    }
-
-    public class TickleTransformScale<T> : TickleTransform<Vector3>
-    {
-        public TickleTransformScale(Transform transform, Vector3 start, Vector3 end, float duration, Ease.Type ease, Action onComplete) : base(transform, start, end, duration, ease, onComplete) { }
-        public override void Update() => _transform.localScale = _value;
-    }
-
-    public class TickleTransformRotation<T> : TickleTransform<Quaternion>
-    {
-        public TickleTransformRotation(Transform transform, Quaternion start, Quaternion end, float duration, Ease.Type ease, Action onComplete) : base(transform, start, end, duration, ease, onComplete) { }
-        public override void Update() => _transform.rotation = _value;
     }
 
     public class TickleRunner : MonoBehaviour
@@ -115,7 +89,7 @@ namespace Tickle
                 tickle.Update();
                 if (!tickle.IsDone) continue;
                 _toRemove.Add(tickle);
-                tickle.OnComplete();
+                tickle.InvokeOnComplete();
             }
 
             for(int i = 0; i < _toRemove.Count; i++)
@@ -139,20 +113,13 @@ namespace Tickle
     public interface ITickle
     {
         bool IsDone { get; }
+        float Duration { get; }
         void Update();
-        void OnComplete();
+        void InvokeOnComplete();
         ITickle Start();
         void Stop();
         void Pause();
         void Resume();
-    }
-
-    public static class Tickler
-    {
-        public static Tickle<float> Lerp(this ref float floatRef, float start, float end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
-            => new TickleSimple<float>(ref floatRef, start, end, duration, ease, onComplete);
-
-        public static Tickle<Vector3> LerpScale(this Transform transform, int start, int end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
-            => new TickleTransformScale<Vector3>(transform, Vector3.one * start, Vector3.one * end, duration, ease, onComplete);
+        ITickle OnComplete(Action onComplete);
     }
 }

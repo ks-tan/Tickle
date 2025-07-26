@@ -3,18 +3,16 @@ using UnityEngine;
 
 public unsafe class GameManager : MonoBehaviour
 {
-    private float[] _values = new float[64000];
+    [SerializeField] private Transform _test;
 
     private void Start()
     {
-        for(int i = 0; i < _values.Length; i++)
+        var tickles = new ITickle[]
         {
-            _values[i] = 0;
-            _values[i].Lerp(0, 10, 10).Start();
-        }
-    }
-
-    private void Update()
-    {
+            _test.LerpPosition(new Vector3(-5, 0, 0), new Vector3(5, 0, 0), 2),
+            _test.LerpScale(1, 3, 5).OnComplete(() => Debug.Log("TEST"))
+        };
+        tickles.OnComplete(() => Debug.Log("COMPLETED"));
+        tickles.Start();
     }
 }
