@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System;
 using Tickle.Lerp;
 using UnityEngine;
+using Unity.VisualScripting;
+using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace Tickle
 {
@@ -121,5 +123,31 @@ namespace Tickle
         void Pause();
         void Resume();
         ITickle OnComplete(Action onComplete);
+    }
+
+    public readonly struct TickleChain
+    {
+        public ITickle[,] Array { get; }
+        public TickleChain(ITickle[,] array) => Array = array;
+        public TickleChain(params ITickle[][] tickles) => Array = null; // TODO
+        public TickleChain(params ITickle[] tickles) => Array = null; // TODO
+
+        public static implicit operator TickleChain(ITickle[,] array) => new(array);
+        public static implicit operator ITickle[,](TickleChain seq) => seq.Array;
+    
+        public TickleChain Chain(params ITickle[] tickle)
+        {
+            return this; // TOOD
+        }
+
+        public TickleChain Chain(params ITickle[][] tickles)
+        {
+            return this; // TODO
+        }
+
+        public TickleChain Chain(params TickleChain[] tickles)
+        {
+            return this; // TODO
+        }
     }
 }
