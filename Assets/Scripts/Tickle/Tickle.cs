@@ -163,6 +163,7 @@ namespace Tickle
 
         public TickleSet Join(params ITickle[] tickles)
         {
+            // TODO: This is broken! It should return THIS
             var combinedLength = Tickles.Length + tickles.Length;
             var newArray = new ITickle[combinedLength];
             for (int i = 0; i < Tickles.Length; i++)
@@ -190,6 +191,7 @@ namespace Tickle
 
         public TickleChain Chain(params ITickle[][] tickleSets)
         {
+            // TODO: This is broken! It should return THIS
             var combinedLength = Array.Length + tickleSets.Length;
             var newArray = new ITickle[combinedLength][];
             for (int i = 0; i < Array.Length; i++)
@@ -203,6 +205,7 @@ namespace Tickle
 
         public TickleChain Chain(ITickle tickle)
         {
+            // TODO: This is broken! It should return THIS
             var newArray = new ITickle[Array.Length + 1][];
             for (int i = 0; i < Array.Length; i++)
                 newArray[i] = Array[i];
