@@ -2,8 +2,6 @@ using System.Collections.Generic;
 using System;
 using Tickle.Lerp;
 using UnityEngine;
-using Unity.VisualScripting;
-using System.Runtime.InteropServices.WindowsRuntime;
 
 namespace Tickle
 {
@@ -13,6 +11,7 @@ namespace Tickle
         private bool _isDone;
         private float _duration;
         private Action _onComplete;
+        private Action _startNextSet; // for chains
 
         protected T _value;
         public bool IsDone => _isDone;
@@ -59,6 +58,10 @@ namespace Tickle
             return this;
         }
 
+        public void AssignNextSetAction(Action startNextSet) => _startNextSet = startNextSet;
+
+        public void InvokeNextSet() => _startNextSet?.Invoke();
+
         ~Tickle() => LerpManager<T>.Destroy(_lerpId);
 
         private static void SetupRunner()
@@ -92,6 +95,7 @@ namespace Tickle
                 if (!tickle.IsDone) continue;
                 _toRemove.Add(tickle);
                 tickle.InvokeOnComplete();
+                tickle.InvokeNextSet();
             }
 
             for(int i = 0; i < _toRemove.Count; i++)
@@ -117,37 +121,76 @@ namespace Tickle
         bool IsDone { get; }
         float Duration { get; }
         void Update();
-        void InvokeOnComplete();
         ITickle Start();
         void Stop();
         void Pause();
         void Resume();
         ITickle OnComplete(Action onComplete);
+        void InvokeOnComplete();
+        void AssignNextSetAction(Action startNextSet);
+        void InvokeNextSet();
     }
 
-    public readonly struct TickleChain
+    public class TickleChain
     {
-        public ITickle[,] Array { get; }
-        public TickleChain(ITickle[,] array) => Array = array;
-        public TickleChain(params ITickle[][] tickles) => Array = null; // TODO
-        public TickleChain(params ITickle[] tickles) => Array = null; // TODO
+        public ITickle[][] Array { get; }
+        public static implicit operator TickleChain(ITickle[][] array) => new(array);
+        public static implicit operator ITickle[][](TickleChain seq) => seq.Array;
 
-        public static implicit operator TickleChain(ITickle[,] array) => new(array);
-        public static implicit operator ITickle[,](TickleChain seq) => seq.Array;
-    
-        public TickleChain Chain(params ITickle[] tickle)
+        public TickleChain() => Array = new ITickle[0][];
+
+        public TickleChain(params ITickle[][] tickleSets)
         {
-            return this; // TOOD
+            Array = tickleSets;
+            for (int i = 0; i < Array.Length - 1; i++)
+                Chain(Array[i], Array[i + 1]);
         }
 
-        public TickleChain Chain(params ITickle[][] tickles)
+        public TickleChain Chain(params ITickle[][] tickleSets)
         {
-            return this; // TODO
+            var combinedLength = Array.Length + tickleSets.Length;
+            var newArray = new ITickle[combinedLength][];
+            for (int i = 0; i < Array.Length; i++)
+                newArray[i] = Array[i];
+            for (int i = 0; i < tickleSets.Length; i++)
+                newArray[i + Array.Length] = tickleSets[i];
+            for (int i = 0; i < newArray.Length - 1; i++)
+                Chain(newArray[i], newArray[i + 1]);
+            return newArray;
         }
 
-        public TickleChain Chain(params TickleChain[] tickles)
+        public TickleChain Chain(ITickle tickle)
         {
-            return this; // TODO
+            var newArray = new ITickle[Array.Length + 1][];
+            for (int i = 0; i < Array.Length; i++)
+                newArray[i] = Array[i];
+            newArray[newArray.Length - 1] = new ITickle[] { tickle };
+            return newArray;
+        }
+
+        public void Chain(ITickle[] currentSet, ITickle[] nextSet)
+        {
+            var longestTickle = currentSet[0];
+            for (int i = 0; i < currentSet.Length; i++)
+            {
+                var tickle = currentSet[i];
+                if (tickle.Duration <= longestTickle.Duration) continue;
+                longestTickle = tickle;
+            }
+            longestTickle.AssignNextSetAction(() => nextSet.Start());
+        }
+
+        // TODO: Implement Stop, Pause and Resume
+        public TickleChain Start()
+        {
+            Array[0].Start();
+            return this;
+        }
+
+        public TickleChain OnComplete(Action onComplete)
+        {
+            Array[Array.Length - 1].OnComplete(onComplete);
+            return this;
         }
     }
 }

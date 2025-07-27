@@ -50,6 +50,12 @@ namespace Tickle
             longestTickle.OnComplete(onComplete);
             return tickles;
         }
+
+        public static ITickle[][] Start(this ITickle[][] chain)
+            => new TickleChain(chain).Start();
+
+        public static ITickle[][] OnComplete(this ITickle[][] chain, Action onComplete)
+            => new TickleChain(chain).OnComplete(onComplete);
     }
 
     public unsafe class TickleSimple<T> : Tickle<T> where T : unmanaged
