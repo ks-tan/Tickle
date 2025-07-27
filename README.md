@@ -25,7 +25,7 @@ There are already many tween libraries out there, but we want to create a librar
 
 ## Getting Started
 
-You may read the documentation **[here](kstan.gitlab.io/tickle)**.
+You may read the complete documentation **[here](kstan.gitlab.io/tickle)**.
 
 ### Installation
 TODO: Instructions will be added to support the following installation methods:
@@ -40,15 +40,13 @@ After installation, please make sure that you go to **"Project Settings" > "Play
 A "Tickle" is a simple description of the linear interpolation (i.e. a "Lerp") of a single property.
 
 ```c#
-Transform player;
-
 // Creating a "Tickle"
-ITickle tickle = player.LerpScale(start: 1, end: 2, duration: 3);
+ITickle tickle = transform.LerpScale(start: 1, end: 2, duration: 3);
 tickle.OnComplete(() => Debug.Log("Finished with scaling"));
 tickle.Start();
 
 // You can also declare these operations in a single line, like this:
-tickle = player.LerpPosition(startPos, endPos, duration)
+tickle = transform.LerpPosition(startPos, endPos, duration)
     .OnComplete(() => Debug.Log("DONE"))
     .Start();
 ```
@@ -60,21 +58,21 @@ A "TickleSet" is a set of Tickles that run parallel to each other. To make it ea
 ```c#
 // Creating a TickleSet
 var tickleSet = new TickleSet()
-    .Join(player.LerpPosition(startPos, endPos, duration))
-    .Join(player.LerpScale(startSize, endSize, duration));
+    .Join(transform.LerpPosition(startPos, endPos, duration))
+    .Join(transform.LerpScale(startSize, endSize, duration));
 tickleSet.OnComplete(() => Debug.Log("Finished with set"));
 tickleSet.Start();
 
 // You may also write it this way
-tickleSet = player.LerpPosition(startPos, endPos, duration)
-    .Join(player.LerpScale(startSize, endSize, duration))
+tickleSet = transform.LerpPosition(startPos, endPos, duration)
+    .Join(transform.LerpScale(startSize, endSize, duration))
     .OnComplete(() => Debug.Log("Finished with set"))
     .Start();
 
 // Or this way, simply as an array of ITickles
 ITickle[] tickleSet = new ITickle[] {
-    player.LerpPosition(startPos, endPos, duration),
-    player.LerpScale(startSize, endSize, duration)
+    transform.LerpPosition(startPos, endPos, duration),
+    transform.LerpScale(startSize, endSize, duration)
 };
 tickleSet.OnComplete(() => Debug.Log("Finished with set"))
 tickleSet.Start();
@@ -89,19 +87,19 @@ A "TickleChain" is a sequence of Tickles that run one after another. Behind the 
 // Creating a TickleChain
 var tickleChain = new TickleChain()
     .Chain(tickleSet)
-    .Chain(player.LerpScale(startSize, endSize, duration))
+    .Chain(transform.LerpScale(startSize, endSize, duration))
     .OnComplete(() => Debug.Log("Finished with sequence"))
     .Start();
 
 // You may also write it as a 2D array of ITickles
 ITickle[][] tickleChain = new ITickle[][] {
     new ITickle[] { // TickleSet 1
-        player.LerpPosition(startPos, endPos, duration),
-        player.LerpScale(startSize, endSize, duration)
+        transform.LerpPosition(startPos, endPos, duration),
+        transform.LerpScale(startSize, endSize, duration)
     },
     new ITickle[] { // TickleSet 2
-        player.LerpPosition(endPos, startPos, duration),
-        player.LerpScale(endSize, startSize, duration)
+        transform.LerpPosition(endPos, startPos, duration),
+        transform.LerpScale(endSize, startSize, duration)
     }
 }
 .OnComplete(() => Debug.Log("Finished with sequence"))
@@ -116,6 +114,7 @@ Again, choose the way to write it such that the sequence of events is the cleare
 ## To-dos
 
 - Unit testing and QA
+- Add delay/wait methods
 - Add tweening for more common properties
 - Add more easing functions
 - Implement the Sparse Set data structure
