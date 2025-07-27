@@ -8,17 +8,14 @@ A performant, yet lightweight and intuitive tween library for Unity. Optionally 
 
 ## Why "Tickle"
 
+The name "Tickle" reflects our focus on improving developer experience by building something that is **"small, simple, fast"**.
+
 There are already many tween libraries out there, but we want to create a library that
 
 - Has no bloat: offers only a light set of API for the most intuitive and common features found in most tween libraries - no obscure features that you will never use
-
 - Does not contain compulsory external dependencies
-
 - Is beautiful to read and easy to reason, even if at the low cost of very little GC allocation, and yet...
-
 - ...could still be trusted for relatively high performance, which could optionally be made even better with Unity's Job System!
-
-The name "Tickle" reflects our focus on improving developer experience by building something that is **"small, simple, fast"**.
 
 ## Getting Started
 
@@ -50,7 +47,6 @@ private void
 
 ## Support / Contribute
 
-Bug reports: "Issues"<br>
-Questions and feature requests: "Discussions"
-
-To become a contributor, feel free to contact me at tankangsoon@gmail.com
+- Bug reports: "Issues"
+- Questions and feature requests: "Discussions"
+- To become a contributor, feel free to contact me at tankangsoon@gmail.com
