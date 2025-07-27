@@ -131,6 +131,48 @@ namespace Tickle
         void InvokeNextSet();
     }
 
+    public class TickleSet
+    {
+        public ITickle[] Tickles { get; }
+        public static implicit operator TickleSet(ITickle[] array) => new(array);
+        public static implicit operator ITickle[](TickleSet set) => set.Tickles;
+
+        public TickleSet() => Tickles = new ITickle[0];
+
+        public TickleSet(params ITickle[] tickles) => Tickles = tickles;
+
+        public TickleSet Start() 
+        {
+            for (int i = 0; i < Tickles.Length; i++)
+                Tickles[i].Start();
+            return this;
+        }
+
+        public TickleSet OnComplete(Action onComplete)
+        {
+            var longestTickle = Tickles[0];
+            for (int i = 0; i < Tickles.Length; i++)
+            {
+                var tickle = Tickles[i];
+                if (tickle.Duration <= longestTickle.Duration) continue;
+                longestTickle = tickle;
+            }
+            longestTickle.OnComplete(onComplete);
+            return this;
+        }
+
+        public TickleSet Join(params ITickle[] tickles)
+        {
+            var combinedLength = Tickles.Length + tickles.Length;
+            var newArray = new ITickle[combinedLength];
+            for (int i = 0; i < Tickles.Length; i++)
+                newArray[i] = Tickles[i];
+            for (int i = 0; i < tickles.Length; i++)
+                newArray[i + Tickles.Length] = tickles[i];
+            return newArray;
+        }
+    }
+
     public class TickleChain
     {
         public ITickle[][] Array { get; }

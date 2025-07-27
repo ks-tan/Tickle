@@ -16,43 +16,20 @@ namespace Tickle
         public static Tickle<Vector3> LerpPosition(this Transform transform, Vector3 start, Vector3 end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
             => new TickleTransformPosition<Vector3>(transform.transform, start, end, duration, ease, onComplete);
 
-        public static ITickle[] Combine(params ITickle[] tickles)
-            => tickles;
-
-        public static ITickle[] Combine(this ITickle[] tickles, ITickle other)
-        {
-            var newTickles = new ITickle[tickles.Length + 1];
-            for(int i = 0; i < tickles.Length; i++)
-                newTickles[i] = tickles[i];
-            newTickles[tickles.Length] = other;
-            return newTickles;
-        }
-
-        public static ITickle[] Combine(this ITickle tickle, ITickle other) 
-            => Combine(new ITickle[] { tickle, other });
-
         public static ITickle[] Start(this ITickle[] tickles)
-        {
-            for (int i = 0; i < tickles.Length; i++)
-                tickles[i].Start();
-            return tickles;
-        }
+            => new TickleSet(tickles).Start();
+
+        public static ITickle[] Join(this ITickle[] current, params ITickle[] tickles)
+            => new TickleSet(current).Join(tickles);
 
         public static ITickle[] OnComplete(this ITickle[] tickles, Action onComplete)
-        {
-            var longestTickle = tickles[0];
-            for(int i = 0; i < tickles.Length; i++)
-            {
-                var tickle = tickles[i];
-                if (tickle.Duration <= longestTickle.Duration) continue;
-                longestTickle = tickle;
-            }
-            longestTickle.OnComplete(onComplete);
-            return tickles;
-        }
+            => new TickleSet(tickles).OnComplete(onComplete);
 
         public static ITickle[][] Start(this ITickle[][] chain)
             => new TickleChain(chain).Start();
+
+        public static ITickle[][] Chain(this ITickle[][] chain, params ITickle[] tickleSets)
+            => new TickleChain(chain).Chain(tickleSets);
 
         public static ITickle[][] OnComplete(this ITickle[][] chain, Action onComplete)
             => new TickleChain(chain).OnComplete(onComplete);
