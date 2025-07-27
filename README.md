@@ -8,7 +8,7 @@
 
 A performant, yet lightweight and intuitive tween library for Unity. Optionally uses Unity's Job System to unlock even more performance!
 
-[Official Site](kstan.gitlab.io/tickle) | [Read Blog](kstan.gitlab.io/tickle-intro)
+[Documentation](kstan.gitlab.io/tickle) | [Read Blog](kstan.gitlab.io/tickle-intro)
 
 **Note: Tickle is not yet production-ready. We are looking for [contributors](##Support-and-Contribute)!**
 
@@ -24,6 +24,8 @@ There are already many tween libraries out there, but we want to create a librar
 - ...could still be trusted for relatively high performance, which could optionally be made even better with Unity's Job System!
 
 ## Getting Started
+
+You may read the documentation **[here](kstan.gitlab.io/tickle)**.
 
 ### Installation
 TODO: Instructions will be added to support the following installation methods:
