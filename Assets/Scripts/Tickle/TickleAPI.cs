@@ -7,6 +7,8 @@ namespace Tickle
 {
     public static class Tickler
     {
+        // TODO: Support more lerp operations
+
         public static Tickle<float> Lerp(this ref float floatRef, float start, float end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
             => new TickleSimple<float>(ref floatRef, start, end, duration, ease, onComplete);
 
@@ -19,6 +21,9 @@ namespace Tickle
         public static ITickle[] Start(this ITickle[] tickles)
             => new TickleSet(tickles).Start();
 
+        public static ITickle[] Join(this ITickle current, params ITickle[] tickles)
+            => new TickleSet(current).Join(tickles);
+
         public static ITickle[] Join(this ITickle[] current, params ITickle[] tickles)
             => new TickleSet(current).Join(tickles);
 
@@ -28,8 +33,11 @@ namespace Tickle
         public static ITickle[][] Start(this ITickle[][] chain)
             => new TickleChain(chain).Start();
 
-        public static ITickle[][] Chain(this ITickle[][] chain, params ITickle[] tickleSets)
-            => new TickleChain(chain).Chain(tickleSets);
+        public static ITickle[][] Chain(this ITickle[] current, params ITickle[] tickleSets)
+            => new TickleChain(current).Chain(tickleSets);
+
+        public static ITickle[][] Chain(this ITickle[][] current, params ITickle[] tickleSets)
+            => new TickleChain(current).Chain(tickleSets);
 
         public static ITickle[][] OnComplete(this ITickle[][] chain, Action onComplete)
             => new TickleChain(chain).OnComplete(onComplete);

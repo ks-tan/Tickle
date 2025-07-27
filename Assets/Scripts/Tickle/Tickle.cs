@@ -133,27 +133,27 @@ namespace Tickle
 
     public class TickleSet
     {
-        public ITickle[] Tickles { get; }
+        private ITickle[] _tickles;
         public static implicit operator TickleSet(ITickle[] array) => new(array);
-        public static implicit operator ITickle[](TickleSet set) => set.Tickles;
+        public static implicit operator ITickle[](TickleSet set) => set._tickles;
 
-        public TickleSet() => Tickles = new ITickle[0];
+        public TickleSet() => _tickles = new ITickle[0];
 
-        public TickleSet(params ITickle[] tickles) => Tickles = tickles;
+        public TickleSet(params ITickle[] tickles) => _tickles = tickles;
 
         public TickleSet Start() 
         {
-            for (int i = 0; i < Tickles.Length; i++)
-                Tickles[i].Start();
+            for (int i = 0; i < _tickles.Length; i++)
+                _tickles[i].Start();
             return this;
         }
 
         public TickleSet OnComplete(Action onComplete)
         {
-            var longestTickle = Tickles[0];
-            for (int i = 0; i < Tickles.Length; i++)
+            var longestTickle = _tickles[0];
+            for (int i = 0; i < _tickles.Length; i++)
             {
-                var tickle = Tickles[i];
+                var tickle = _tickles[i];
                 if (tickle.Duration <= longestTickle.Duration) continue;
                 longestTickle = tickle;
             }
@@ -163,54 +163,56 @@ namespace Tickle
 
         public TickleSet Join(params ITickle[] tickles)
         {
-            // TODO: This is broken! It should return THIS
-            var combinedLength = Tickles.Length + tickles.Length;
+            var combinedLength = _tickles.Length + tickles.Length;
             var newArray = new ITickle[combinedLength];
-            for (int i = 0; i < Tickles.Length; i++)
-                newArray[i] = Tickles[i];
+            for (int i = 0; i < _tickles.Length; i++)
+                newArray[i] = _tickles[i];
             for (int i = 0; i < tickles.Length; i++)
-                newArray[i + Tickles.Length] = tickles[i];
-            return newArray;
+                newArray[i + _tickles.Length] = tickles[i];
+            _tickles = newArray;
+            return this;
         }
     }
 
     public class TickleChain
     {
-        public ITickle[][] Array { get; }
+        private ITickle[][] _array;
         public static implicit operator TickleChain(ITickle[][] array) => new(array);
-        public static implicit operator ITickle[][](TickleChain seq) => seq.Array;
+        public static implicit operator ITickle[][](TickleChain seq) => seq._array;
 
-        public TickleChain() => Array = new ITickle[0][];
+        public TickleChain() => _array = new ITickle[0][];
 
         public TickleChain(params ITickle[][] tickleSets)
         {
-            Array = tickleSets;
-            for (int i = 0; i < Array.Length - 1; i++)
-                Chain(Array[i], Array[i + 1]);
+            _array = tickleSets;
+            for (int i = 0; i < _array.Length - 1; i++)
+                Chain(_array[i], _array[i + 1]);
         }
 
         public TickleChain Chain(params ITickle[][] tickleSets)
         {
-            // TODO: This is broken! It should return THIS
-            var combinedLength = Array.Length + tickleSets.Length;
+            var combinedLength = _array.Length + tickleSets.Length;
             var newArray = new ITickle[combinedLength][];
-            for (int i = 0; i < Array.Length; i++)
-                newArray[i] = Array[i];
+            for (int i = 0; i < _array.Length; i++)
+                newArray[i] = _array[i];
             for (int i = 0; i < tickleSets.Length; i++)
-                newArray[i + Array.Length] = tickleSets[i];
+                newArray[i + _array.Length] = tickleSets[i];
             for (int i = 0; i < newArray.Length - 1; i++)
                 Chain(newArray[i], newArray[i + 1]);
-            return newArray;
+            _array = newArray;
+            return this;
         }
 
         public TickleChain Chain(ITickle tickle)
         {
-            // TODO: This is broken! It should return THIS
-            var newArray = new ITickle[Array.Length + 1][];
-            for (int i = 0; i < Array.Length; i++)
-                newArray[i] = Array[i];
+            var newArray = new ITickle[_array.Length + 1][];
+            for (int i = 0; i < _array.Length; i++)
+                newArray[i] = _array[i];
             newArray[newArray.Length - 1] = new ITickle[] { tickle };
-            return newArray;
+            if (_array.Length > 0)
+                Chain(newArray[newArray.Length - 2], newArray[newArray.Length - 1]);
+            _array = newArray;
+            return this;
         }
 
         public void Chain(ITickle[] currentSet, ITickle[] nextSet)
@@ -228,13 +230,13 @@ namespace Tickle
         // TODO: Implement Stop, Pause and Resume
         public TickleChain Start()
         {
-            Array[0].Start();
+            _array[0].Start();
             return this;
         }
 
         public TickleChain OnComplete(Action onComplete)
         {
-            Array[Array.Length - 1].OnComplete(onComplete);
+            _array[_array.Length - 1].OnComplete(onComplete);
             return this;
         }
     }
