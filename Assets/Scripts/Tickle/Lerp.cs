@@ -5,6 +5,8 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Unity.Collections;
 using System;
+using UnityEditor.PackageManager;
+
 
 #if ENABLE_BURST
 using Unity.Burst;
@@ -118,19 +120,20 @@ namespace Tickle.Lerp
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Update()
+        public bool Update()
         {
-            if (!IsRunning) return;
-            if (IsDone) return;
+            if (!IsRunning) return IsDone;
+            if (IsDone) return IsDone;
             if (ElapsedTime < Duration)
             {
                 var value = LerpManager<T>.ApplyLerp(Start, End, Ease.Apply(ElapsedTime / Duration, EaseType));
                 *Target = value;
                 ElapsedTime += Time.deltaTime;
-                return;
+                return IsDone;
             }
             *Target = End;
             SetIsDone(true);
+            return IsDone;
         }
     }
 
@@ -152,6 +155,7 @@ namespace Tickle.Lerp
         private static int _runningProcessCount;
         private static NativeArray<Lerp<T>> _createdProcesses;
         private static NativeArray<Lerp<T>> _runningProcesses;
+        private static NativeArray<bool> _hasDoneProcesses;
 
         private static void Setup()
         {
@@ -176,6 +180,7 @@ namespace Tickle.Lerp
 #endif
             _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
             _createdProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
+            _hasDoneProcesses = new NativeArray<bool>(1, Allocator.Persistent);
         }
 
         private static bool TryGetProcess(int id, NativeArray<Lerp<T>> array, int count, ref Lerp<T> processRef)
@@ -317,7 +322,7 @@ namespace Tickle.Lerp
             if (!_runningProcesses.IsCreated) return;
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
             for (int i = 0; i < _runningProcessCount; i++)
-                ptr[i].Update();
+                _hasDoneProcesses[0] = ptr[i].Update();
         }
 
 #if ENABLE_BURST
@@ -328,7 +333,8 @@ namespace Tickle.Lerp
             var job = new LerpUpdateParallelJob() {
                 DeltaTime = Time.deltaTime,
                 Processes = _runningProcesses,
-                TypeLerp = _lerpType
+                TypeLerp = _lerpType,
+                HasDoneProcesses = _hasDoneProcesses,
             };
             JobHandle handle = job.Schedule(_runningProcessCount, 64); // 64 = batch size
             handle.Complete();
@@ -339,6 +345,7 @@ namespace Tickle.Lerp
         {
             [NativeDisableParallelForRestriction]
             public NativeArray<Lerp<T>> Processes;
+            public NativeArray<bool> HasDoneProcesses;
             public float DeltaTime;
             public LerpType TypeLerp;
 
@@ -400,9 +407,9 @@ namespace Tickle.Lerp
                 }
                 else
                 {
-                    // Direct copy for completion
                     UnsafeUtility.CopyStructureToPtr(ref process.End, process.Target);
                     process.SetIsDone(true);
+                    HasDoneProcesses[0] = true;
                 }
 
                 Processes[i] = process;
@@ -421,22 +428,27 @@ namespace Tickle.Lerp
         public static void CompactRunningProcessArray()
         {
             if (!_runningProcesses.IsCreated) return;
+            if (!_hasDoneProcesses.IsCreated) return;
 
-            // TODO: This is very wrong! We do not want to loop through this list
-            // on every update frame!
-            // Remove done processes from list of running processes
-            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
-            int index = 0;
-            while (index < _runningProcessCount)
+            // TODO: Instead of just getting a true/false value, it would be
+            // better to know the exact number of done processes, so we do not
+            // have to loop through the whole list all the time.
+            if (_hasDoneProcesses[0])
             {
-                if (!ptr[index].IsDone)
+                Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
+                int index = 0;
+                while (index < _runningProcessCount)
                 {
-                    index++;
-                    continue;
+                    if (!ptr[index].IsDone)
+                    {
+                        index++;
+                        continue;
+                    }
+                    // Remove from list by swapping with last element and reduce count
+                    ptr[index] = ptr[_runningProcessCount - 1];
+                    _runningProcessCount--;
                 }
-                // Remove from list by swapping with last element and reduce count
-                ptr[index] = ptr[_runningProcessCount - 1];
-                _runningProcessCount--;
+                _hasDoneProcesses[0] = false;
             }
 
             if (_runningProcessCount < 64) return;
