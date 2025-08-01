@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System;
 using Tickle.Lerp;
 using UnityEngine;
-using System.Linq;
 
 namespace Tickle
 {

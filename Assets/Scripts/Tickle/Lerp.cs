@@ -139,8 +139,10 @@ namespace Tickle.Lerp
         private static int _rollingId;
         private static delegate*<T, T, float, T> _lerp;
 
+#if ENABLE_BURST
         public enum LerpType { Float, Color, Vec2, Vec3, Vec4, Quat }
         private static LerpType _lerpType;
+#endif
         
         // Note: _createdProcesses and _runningProcesses do not hold exact references
         // of the same Lerp<T> data, but copies. When a process is only created but
@@ -164,15 +166,18 @@ namespace Tickle.Lerp
             else if (typeof(T) == typeof(Vector4)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Vec4;
             else if (typeof(T) == typeof(Quaternion)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Quat;
 
+#if ENABLE_BURST
             if (typeof(T) == typeof(float)) _lerpType = LerpType.Float;
             else if (typeof(T) == typeof(Color)) _lerpType = LerpType.Color;
             else if (typeof(T) == typeof(Vector2)) _lerpType = LerpType.Vec2;
             else if (typeof(T) == typeof(Vector3)) _lerpType = LerpType.Vec3;
             else if (typeof(T) == typeof(Vector4)) _lerpType = LerpType.Vec4;
             else if (typeof(T) == typeof(Quaternion)) _lerpType = LerpType.Quat;
-
+#endif
+            Debug.Log("CREATE arrays");
             _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
             _createdProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
+            Debug.Log(_runningProcesses.IsCreated);
         }
 
         private static bool TryGetProcess(int id, NativeArray<Lerp<T>> array, int count, ref Lerp<T> processRef)
@@ -391,6 +396,7 @@ namespace Tickle.Lerp
 
         public static void CompactCreatedProcessArray()
         {
+            if (!_createdProcesses.IsCreated) return;
             if (_createdProcessCount < 64) return;
             if (_createdProcessCount > _createdProcesses.Length / 3) return;
             ResizeCreatedProcessesArray(_createdProcesses.Length / 2);
@@ -398,6 +404,8 @@ namespace Tickle.Lerp
 
         public static void CompactRunningProcessArray()
         {
+            if (!_runningProcesses.IsCreated) return;
+
             // Remove done processes from list of running processes
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
             int index = 0;
