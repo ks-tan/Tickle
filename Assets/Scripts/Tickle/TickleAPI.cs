@@ -16,7 +16,10 @@ namespace Tickle
             => new TickleTransformScale<Vector3>(transform, Vector3.one * start, Vector3.one * end, duration, ease, onComplete);
 
         public static Tickle<Vector3> LerpPosition(this Transform transform, Vector3 start, Vector3 end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
-            => new TickleTransformPosition<Vector3>(transform.transform, start, end, duration, ease, onComplete);
+            => new TickleTransformPosition<Vector3>(transform, start, end, duration, ease, onComplete);
+
+        public static Tickle<Quaternion> LerpRotation(this Transform transform, Vector3 eulerStart, Vector3 eulerEnd, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
+            => new TickleTransformRotation<Quaternion>(transform, Quaternion.Euler(eulerStart), Quaternion.Euler(eulerEnd), duration, ease, onComplete);
 
         public static ITickle[] Start(this ITickle[] tickles)
             => new TickleSet(tickles).Start();
@@ -32,6 +35,9 @@ namespace Tickle
 
         public static ITickle[][] Start(this ITickle[][] chain)
             => new TickleChain(chain).Start();
+
+        public static void Stop(this ITickle[][] chain)
+            => new TickleChain(chain).Stop();
 
         public static ITickle[][] Chain(this ITickle[] current, params ITickle[] tickleSets)
             => new TickleChain(current).Chain(tickleSets);
@@ -64,7 +70,7 @@ namespace Tickle
     {
         public TickleTransformPosition(Transform transform, Vector3 start, Vector3 end, float duration, Ease.Type ease, Action onComplete) 
             : base(transform, start, end, duration, ease, onComplete) { }
-        public override void Update() => _transform.position = _value;
+        public override void Update() => _transform.localPosition = _value;
     }
 
     public class TickleTransformScale<T> : TickleTransform<Vector3>
@@ -78,6 +84,6 @@ namespace Tickle
     {
         public TickleTransformRotation(Transform transform, Quaternion start, Quaternion end, float duration, Ease.Type ease, Action onComplete) 
             : base(transform, start, end, duration, ease, onComplete) { }
-        public override void Update() => _transform.rotation = _value;
+        public override void Update() => _transform.localRotation = _value;
     }
 }

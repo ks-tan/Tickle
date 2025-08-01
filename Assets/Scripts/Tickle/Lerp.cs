@@ -42,7 +42,6 @@ namespace Tickle.Lerp
             LerpManager<Vector4>.UpdateAll();
             LerpManager<Quaternion>.UpdateAll();
 #endif
-
             LerpManager<float>.CompactRunningProcessArray();
             LerpManager<Color>.CompactRunningProcessArray();
             LerpManager<Vector2>.CompactRunningProcessArray();
@@ -295,25 +294,9 @@ namespace Tickle.Lerp
         public static void UpdateAll()
         {
             if (!_runningProcesses.IsCreated) return;
-
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
-
             for (int i = 0; i < _runningProcessCount; i++)
                 ptr[i].Update();
-
-            int index = 0;
-            while (index < _runningProcessCount)
-            {
-                if (!ptr[index].IsDone)
-                {
-                    index++;
-                    continue;
-                }
-
-                // Remove from list by swapping with last element and reduce count
-                ptr[index] = ptr[_runningProcessCount - 1];
-                _runningProcessCount--;
-            }
         }
 
 #if ENABLE_BURST
@@ -415,6 +398,21 @@ namespace Tickle.Lerp
 
         public static void CompactRunningProcessArray()
         {
+            // Remove done processes from list of running processes
+            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
+            int index = 0;
+            while (index < _runningProcessCount)
+            {
+                if (!ptr[index].IsDone)
+                {
+                    index++;
+                    continue;
+                }
+                // Remove from list by swapping with last element and reduce count
+                ptr[index] = ptr[_runningProcessCount - 1];
+                _runningProcessCount--;
+            }
+
             if (_runningProcessCount < 64) return;
             if (_runningProcessCount > _runningProcesses.Length / 3) return;
             ResizeRunningProcessesArray(_runningProcesses.Length / 2);
@@ -475,12 +473,14 @@ namespace Tickle.Lerp
         public static float Apply(float t, Type type)
         {
             if (type == Type.None) return None(t);
+            if (type == Type.OutCubic) return OutCubic(t);
             if (type == Type.OutExpo) return OutExpo(t);
             throw new NotSupportedException();
         }
 
-        public enum Type { None, OutExpo }
+        public enum Type { None, OutCubic, OutExpo }
         private static float None(float t) => t;
+        private static float OutCubic(float t) => 1 - Mathf.Pow(1 - t, 3);
         private static float OutExpo(float t) => t == 1 ? 1 : 1 - Mathf.Pow(2, -10 * t);
     }
 }

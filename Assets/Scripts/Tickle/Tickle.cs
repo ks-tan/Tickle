@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System;
 using Tickle.Lerp;
 using UnityEngine;
+using System.Linq;
 
 namespace Tickle
 {
@@ -232,6 +233,13 @@ namespace Tickle
         {
             _array[0].Start();
             return this;
+        }
+
+        public void Stop()
+        {
+            for(int i = 0; i < _array.Length; i++)
+                for (int j = 0; j < _array[i].Length; j++)
+                    _array[i][j].Stop();
         }
 
         public TickleChain OnComplete(Action onComplete)
