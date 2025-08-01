@@ -492,6 +492,7 @@ namespace Tickle.Lerp
             // Release NativeArray memory
             if (_runningProcesses.IsCreated) _runningProcesses.Dispose(); 
             if (_createdProcesses.IsCreated) _createdProcesses.Dispose();
+            if (_hasDoneProcesses.IsCreated) _hasDoneProcesses.Dispose();
 
             _runningProcesses = default;
             _createdProcesses = default;
