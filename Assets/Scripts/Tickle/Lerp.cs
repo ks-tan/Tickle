@@ -496,6 +496,7 @@ namespace Tickle.Lerp
 
             _runningProcesses = default;
             _createdProcesses = default;
+            _hasDoneProcesses = default;
             _runningProcessCount = 0;
             _createdProcessCount = 0;
             _rollingId = 0;
