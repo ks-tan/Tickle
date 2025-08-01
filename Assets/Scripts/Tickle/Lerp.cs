@@ -174,10 +174,8 @@ namespace Tickle.Lerp
             else if (typeof(T) == typeof(Vector4)) _lerpType = LerpType.Vec4;
             else if (typeof(T) == typeof(Quaternion)) _lerpType = LerpType.Quat;
 #endif
-            Debug.Log("CREATE arrays");
             _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
             _createdProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
-            Debug.Log(_runningProcesses.IsCreated);
         }
 
         private static bool TryGetProcess(int id, NativeArray<Lerp<T>> array, int count, ref Lerp<T> processRef)
