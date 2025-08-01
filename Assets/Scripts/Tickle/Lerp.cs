@@ -269,10 +269,26 @@ namespace Tickle.Lerp
 
         public static void Stop(int id)
         {
+            // This is an API method for manually stopping a lerp, i.e., not to
+            // be called at the natural end of a lerp. We choose the nuclear
+            // option, that is to immediately remove this lerp from running processes
+
             Lerp<T> process = default;
-            var isFound = TryGetRunningProcess(id, ref process);
-            if (!isFound) return;
+            if (!TryGetRunningProcess(id, ref process)) return;
             process.SetIsDone(true);
+
+            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
+            int index = 0;
+            while (index < _runningProcessCount)
+            {
+                if (ptr[index].Id == id)
+                {
+                    ptr[index] = ptr[_runningProcessCount - 1];
+                    _runningProcessCount--;
+                    break;
+                }
+                index++;
+            }
         }
 
         public static void Destroy(int id)
