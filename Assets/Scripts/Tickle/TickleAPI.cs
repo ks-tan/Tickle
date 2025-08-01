@@ -1,4 +1,6 @@
+using NUnit.Framework.Constraints;
 using System;
+using System.Runtime.CompilerServices;
 using Tickle.Lerp;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
@@ -8,6 +10,9 @@ namespace Tickle
     public static class Tickler
     {
         // TODO: Support more lerp operations
+
+        public static Tickle<float> WaitForSeconds(float seconds, Action onComplete = null)
+            => new Tickle<float>(0, 1, seconds, Ease.Type.None, onComplete);
 
         public static Tickle<float> Lerp(this ref float floatRef, float start, float end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
             => new TickleSimple<float>(ref floatRef, start, end, duration, ease, onComplete);
