@@ -236,6 +236,7 @@ namespace Tickle.Lerp
             {
                 var isCreatedProcessFound = TryGetCreatedProcess(id, ref process);
                 if (!isCreatedProcessFound) return;
+                *process.Target = process.Start;
                 process.IsRunning = true;
                 process.SetIsDone(false);
                 process.ElapsedTime = 0;
@@ -245,6 +246,7 @@ namespace Tickle.Lerp
             }
             else
             {
+                *process.Target = process.Start;
                 process.IsRunning = true;
                 process.SetIsDone(false);
                 process.ElapsedTime = 0;
