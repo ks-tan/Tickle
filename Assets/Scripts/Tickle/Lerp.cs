@@ -404,6 +404,8 @@ namespace Tickle.Lerp
         {
             if (!_runningProcesses.IsCreated) return;
 
+            // TODO: This is very wrong! We do not want to loop through this list
+            // on every update frame!
             // Remove done processes from list of running processes
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
             int index = 0;
