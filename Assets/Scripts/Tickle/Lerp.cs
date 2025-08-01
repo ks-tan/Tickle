@@ -5,8 +5,6 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Unity.Collections;
 using System;
-using UnityEditor.PackageManager;
-
 
 #if ENABLE_BURST
 using Unity.Burst;
