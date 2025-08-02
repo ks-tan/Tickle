@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System;
 using Tickle.Lerp;
 using UnityEngine;
+using Tickle.Easings;
 
 namespace Tickle
 {
@@ -17,7 +18,7 @@ namespace Tickle
         public bool IsDone => _isDone;
         public float Duration => _duration;
 
-        public Tickle(T start, T end, float duration, Ease.Type ease, Action onComplete)
+        public Tickle(T start, T end, float duration, Ease ease, Action onComplete)
         {
             if (TickleRunner.Instance == null) SetupRunner();
             _lerpId = LerpManager<T>.Create(ref _value, ref _isDone, start, end, duration, ease);

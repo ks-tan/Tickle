@@ -1,12 +1,8 @@
-#define ENABLE_BURST
-
 using System.Runtime.CompilerServices;
+using Tickle.Easings;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Unity.Collections;
-using System;
-using UnityEditor.PackageManager;
-
 
 #if ENABLE_BURST
 using Unity.Burst;
@@ -87,13 +83,13 @@ namespace Tickle.Lerp
         public T Start;
         public T End;
         public float Duration;
-        public Ease.Type EaseType;
+        public Ease EaseType;
         public float ElapsedTime;
         public bool IsRunning;
         public bool IsDone;
         private bool* _doneHandle;
 
-        public Lerp(int id, ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
+        public Lerp(int id, ref T target, T start, T end, float duration, Ease ease = Ease.None)
         {
             Id = id;
             Target = (T*)UnsafeUtility.AddressOf(ref target);
@@ -126,7 +122,7 @@ namespace Tickle.Lerp
             if (IsDone) return IsDone;
             if (ElapsedTime <= Duration)
             {
-                var value = LerpManager<T>.ApplyLerp(Start, End, Ease.Apply(ElapsedTime / Duration, EaseType));
+                var value = LerpManager<T>.ApplyLerp(Start, End, EaseUtility.Apply(ElapsedTime / Duration, EaseType));
                 *Target = value;
                 ElapsedTime += Time.deltaTime;
             }
@@ -207,7 +203,7 @@ namespace Tickle.Lerp
             return TryGetProcess(id, _createdProcesses, _createdProcessCount, ref processRef);
         }
 
-        public static int Create(ref T target, ref bool doneHandle, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
+        public static int Create(ref T target, ref bool doneHandle, T start, T end, float duration, Ease ease = Ease.None)
         {
             if (!_createdProcesses.IsCreated)
                 Setup();
@@ -219,13 +215,13 @@ namespace Tickle.Lerp
             return process.Id;
         }
 
-        public static int Create(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
+        public static int Create(ref T target, T start, T end, float duration, Ease ease = Ease.None)
         {
             bool dummy = false;
             return Create(ref target, ref dummy, start, end, duration, ease);
         }
 
-        public static int Start(ref T target, T start, T end, float duration, Ease.Type ease = Ease.Type.None)
+        public static int Start(ref T target, T start, T end, float duration, Ease ease = Ease.None)
         {
             var pid = Create(ref target, start, end, duration, ease);
             Start(pid);
@@ -356,7 +352,7 @@ namespace Tickle.Lerp
                 if (process.ElapsedTime <= process.Duration)
                 {
                     float t = process.ElapsedTime / process.Duration;
-                    t = Ease.Apply(t, process.EaseType);
+                    t = EaseUtility.Apply(t, process.EaseType);
 
                     // Directly write to target memory using the correct type
                     if (TypeLerp == LerpType.Float)
@@ -501,30 +497,5 @@ namespace Tickle.Lerp
             _createdProcessCount = 0;
             _rollingId = 0;
         }
-    }
-
-    public static class Ease
-    {
-#if ENABLE_BURST
-        [BurstCompile]
-#endif
-        public static float Apply(float t, Type type)
-        {
-            if (type == Type.None) return None(t);
-            if (type == Type.Reverse) return Reverse(t);
-            if (type == Type.EaseInQuad) return EaseInQuad(t);
-            if (type == Type.EaseOutQuad) return EaseOutQuad(t);
-            if (type == Type.BounceQuad) return BounceQuad(t);
-            if (type == Type.JumpQuad) return JumpQuad(t);
-            throw new NotSupportedException();
-        }
-
-        public enum Type { None, Reverse, EaseInQuad, EaseOutQuad, BounceQuad, JumpQuad }
-        private static float None(float x) => x;
-        private static float Reverse(float x) => 1 - x;
-        private static float EaseInQuad(float x) => x * x;
-        private static float EaseOutQuad(float x) => Reverse(EaseInQuad(Reverse(x)));
-        private static float BounceQuad(float x) => x < 0.5f ? EaseInQuad(x * 2) : EaseInQuad(Reverse(x) * 2);
-        private static float JumpQuad(float x) => x < 0.5f ? EaseOutQuad(x * 2) : EaseOutQuad(Reverse(x) * 2);
     }
 }

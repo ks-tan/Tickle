@@ -1,5 +1,5 @@
 using Tickle;
-using Tickle.Lerp;
+using Tickle.Easings;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -26,8 +26,8 @@ public unsafe class GameManager : MonoBehaviour
         {
             new ITickle[]
             {
-                cube.LerpPosition(startPosition, endPosition, 2, Ease.Type.JumpQuad),
-                cube.LerpRotation(startRotation, endRotation, 2, Ease.Type.JumpQuad)
+                cube.LerpPosition(startPosition, endPosition, 2, Ease.JumpQuad),
+                cube.LerpRotation(startRotation, endRotation, 2, Ease.JumpQuad)
             },
         };
     }

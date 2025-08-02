@@ -1,7 +1,5 @@
-using NUnit.Framework.Constraints;
 using System;
-using System.Runtime.CompilerServices;
-using Tickle.Lerp;
+using Tickle.Easings;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 
@@ -12,18 +10,18 @@ namespace Tickle
         // TODO: Support more lerp operations
 
         public static Tickle<float> WaitForSeconds(float seconds, Action onComplete = null)
-            => new Tickle<float>(0, 1, seconds, Ease.Type.None, onComplete);
+            => new Tickle<float>(0, 1, seconds, Ease.None, onComplete);
 
-        public static Tickle<float> Lerp(this ref float floatRef, float start, float end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
+        public static Tickle<float> Lerp(this ref float floatRef, float start, float end, float duration, Ease ease = Ease.None, Action onComplete = null)
             => new TickleSimple<float>(ref floatRef, start, end, duration, ease, onComplete);
 
-        public static Tickle<Vector3> LerpScale(this Transform transform, int start, int end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
+        public static Tickle<Vector3> LerpScale(this Transform transform, int start, int end, float duration, Ease ease = Ease.None, Action onComplete = null)
             => new TickleTransformScale<Vector3>(transform, Vector3.one * start, Vector3.one * end, duration, ease, onComplete);
 
-        public static Tickle<Vector3> LerpPosition(this Transform transform, Vector3 start, Vector3 end, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
+        public static Tickle<Vector3> LerpPosition(this Transform transform, Vector3 start, Vector3 end, float duration, Ease ease = Ease.None, Action onComplete = null)
             => new TickleTransformPosition<Vector3>(transform, start, end, duration, ease, onComplete);
 
-        public static Tickle<Quaternion> LerpRotation(this Transform transform, Vector3 eulerStart, Vector3 eulerEnd, float duration, Ease.Type ease = Ease.Type.None, Action onComplete = null)
+        public static Tickle<Quaternion> LerpRotation(this Transform transform, Vector3 eulerStart, Vector3 eulerEnd, float duration, Ease ease = Ease.None, Action onComplete = null)
             => new TickleTransformRotation<Quaternion>(transform, Quaternion.Euler(eulerStart), Quaternion.Euler(eulerEnd), duration, ease, onComplete);
 
         public static ITickle[] Start(this ITickle[] tickles)
@@ -58,7 +56,7 @@ namespace Tickle
     {
         private T* _target;
 
-        public TickleSimple(ref T target, T start, T end, float duration, Ease.Type ease, Action onComplete) 
+        public TickleSimple(ref T target, T start, T end, float duration, Ease ease, Action onComplete) 
             : base(start, end, duration, ease, onComplete) => _target = (T*)UnsafeUtility.AddressOf(ref target);
 
         public override void Update() => *_target = _value;
@@ -67,27 +65,27 @@ namespace Tickle
     public class TickleTransform<T> : Tickle<T> where T : unmanaged
     {
         protected Transform _transform;
-        public TickleTransform(Transform transform, T start, T end, float duration, Ease.Type ease, Action onComplete) 
+        public TickleTransform(Transform transform, T start, T end, float duration, Ease ease, Action onComplete) 
             : base(start, end, duration, ease, onComplete) => _transform = transform;
     }
 
     public class TickleTransformPosition<T> : TickleTransform<Vector3>
     {
-        public TickleTransformPosition(Transform transform, Vector3 start, Vector3 end, float duration, Ease.Type ease, Action onComplete) 
+        public TickleTransformPosition(Transform transform, Vector3 start, Vector3 end, float duration, Ease ease, Action onComplete) 
             : base(transform, start, end, duration, ease, onComplete) { }
         public override void Update() => _transform.localPosition = _value;
     }
 
     public class TickleTransformScale<T> : TickleTransform<Vector3>
     {
-        public TickleTransformScale(Transform transform, Vector3 start, Vector3 end, float duration, Ease.Type ease, Action onComplete) 
+        public TickleTransformScale(Transform transform, Vector3 start, Vector3 end, float duration, Ease ease, Action onComplete) 
             : base(transform, start, end, duration, ease, onComplete) { }
         public override void Update() => _transform.localScale = _value;
     }
 
     public class TickleTransformRotation<T> : TickleTransform<Quaternion>
     {
-        public TickleTransformRotation(Transform transform, Quaternion start, Quaternion end, float duration, Ease.Type ease, Action onComplete) 
+        public TickleTransformRotation(Transform transform, Quaternion start, Quaternion end, float duration, Ease ease, Action onComplete) 
             : base(transform, start, end, duration, ease, onComplete) { }
         public override void Update() => _transform.localRotation = _value;
     }
