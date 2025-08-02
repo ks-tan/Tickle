@@ -5,6 +5,8 @@ using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Unity.Collections;
 using System;
+using UnityEditor.PackageManager;
+
 
 #if ENABLE_BURST
 using Unity.Burst;
@@ -122,15 +124,14 @@ namespace Tickle.Lerp
         {
             if (!IsRunning) return IsDone;
             if (IsDone) return IsDone;
-            if (ElapsedTime < Duration)
+            if (ElapsedTime <= Duration)
             {
                 var value = LerpManager<T>.ApplyLerp(Start, End, Ease.Apply(ElapsedTime / Duration, EaseType));
                 *Target = value;
                 ElapsedTime += Time.deltaTime;
-                return IsDone;
             }
-            *Target = End;
-            SetIsDone(true);
+            if (ElapsedTime > Duration)
+                SetIsDone(true);
             return IsDone;
         }
     }
@@ -352,7 +353,7 @@ namespace Tickle.Lerp
                 Lerp<T> process = Processes[i];
                 if (!process.IsRunning || process.IsDone) return;
 
-                if (process.ElapsedTime < process.Duration)
+                if (process.ElapsedTime <= process.Duration)
                 {
                     float t = process.ElapsedTime / process.Duration;
                     t = Ease.Apply(t, process.EaseType);
@@ -403,9 +404,8 @@ namespace Tickle.Lerp
 
                     process.ElapsedTime += DeltaTime;
                 }
-                else
+                if (process.ElapsedTime > process.Duration)
                 {
-                    UnsafeUtility.CopyStructureToPtr(ref process.End, process.Target);
                     process.SetIsDone(true);
                     HasDoneProcesses[0] = true;
                 }
@@ -511,14 +511,20 @@ namespace Tickle.Lerp
         public static float Apply(float t, Type type)
         {
             if (type == Type.None) return None(t);
-            if (type == Type.OutCubic) return OutCubic(t);
-            if (type == Type.OutExpo) return OutExpo(t);
+            if (type == Type.Reverse) return Reverse(t);
+            if (type == Type.EaseInQuad) return EaseInQuad(t);
+            if (type == Type.EaseOutQuad) return EaseOutQuad(t);
+            if (type == Type.BounceQuad) return BounceQuad(t);
+            if (type == Type.JumpQuad) return JumpQuad(t);
             throw new NotSupportedException();
         }
 
-        public enum Type { None, OutCubic, OutExpo }
-        private static float None(float t) => t;
-        private static float OutCubic(float t) => 1 - Mathf.Pow(1 - t, 3);
-        private static float OutExpo(float t) => t == 1 ? 1 : 1 - Mathf.Pow(2, -10 * t);
+        public enum Type { None, Reverse, EaseInQuad, EaseOutQuad, BounceQuad, JumpQuad }
+        private static float None(float x) => x;
+        private static float Reverse(float x) => 1 - x;
+        private static float EaseInQuad(float x) => x * x;
+        private static float EaseOutQuad(float x) => Reverse(EaseInQuad(Reverse(x)));
+        private static float BounceQuad(float x) => x < 0.5f ? EaseInQuad(x * 2) : EaseInQuad(Reverse(x) * 2);
+        private static float JumpQuad(float x) => x < 0.5f ? EaseOutQuad(x * 2) : EaseOutQuad(Reverse(x) * 2);
     }
 }
