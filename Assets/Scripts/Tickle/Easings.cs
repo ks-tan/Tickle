@@ -10,7 +10,7 @@ namespace Tickle.Easings
         InQuad, OutQuad, BounceQuad, JumpQuad
     }
 
-    public static class EaseUtility
+    public static class EaseFunctions
     {
 #if ENABLE_BURST
         [BurstCompile]

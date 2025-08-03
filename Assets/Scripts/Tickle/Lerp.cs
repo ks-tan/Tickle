@@ -122,7 +122,7 @@ namespace Tickle.Lerp
             if (IsDone) return IsDone;
             if (ElapsedTime <= Duration)
             {
-                var value = LerpManager<T>.ApplyLerp(Start, End, EaseUtility.Apply(ElapsedTime / Duration, EaseType));
+                var value = LerpManager<T>.ApplyLerp(Start, End, EaseFunctions.Apply(ElapsedTime / Duration, EaseType));
                 *Target = value;
                 ElapsedTime += Time.deltaTime;
             }
@@ -352,7 +352,7 @@ namespace Tickle.Lerp
                 if (process.ElapsedTime <= process.Duration)
                 {
                     float t = process.ElapsedTime / process.Duration;
-                    t = EaseUtility.Apply(t, process.EaseType);
+                    t = EaseFunctions.Apply(t, process.EaseType);
 
                     // Directly write to target memory using the correct type
                     if (TypeLerp == LerpType.Float)
