@@ -230,6 +230,11 @@ namespace Tickle.Lerp
 
         public static void Start(int id)
         {
+            // TODO: We should remove the use of TryGetRunningProcess and the use of ref keyword.
+            // Instead, put a list of processIds to be started/resumed/etc in their respective list
+            // Then we update each lerp's internal state together during the update loop.
+            // There is more complexity, but the flow of data will be cleaner and more debuggable
+            // than throwing refs around.
             Lerp<T> process = default;
             var isRunningProcessFound = TryGetRunningProcess(id, ref process);
             if (!isRunningProcessFound)
@@ -331,7 +336,7 @@ namespace Tickle.Lerp
                 TypeLerp = _lerpType,
                 HasDoneProcesses = _hasDoneProcesses,
             };
-            JobHandle handle = job.Schedule(_runningProcessCount, 64); // 64 = batch size
+            JobHandle handle = job.Schedule(_runningProcessCount, _runningProcessCount);
             handle.Complete();
         }
 

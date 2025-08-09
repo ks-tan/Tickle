@@ -15,14 +15,17 @@ namespace Tickle
         public static Tickle<float> Lerp(this ref float floatRef, float start, float end, float duration, Ease ease = Ease.None, Action onComplete = null)
             => new TickleSimple<float>(ref floatRef, start, end, duration, ease, onComplete);
 
-        public static Tickle<Vector3> LerpScale(this Transform transform, int start, int end, float duration, Ease ease = Ease.None, Action onComplete = null)
+        public static Tickle<Vector3> LerpScale(this Transform transform, float start, float end, float duration, Ease ease = Ease.None, Action onComplete = null)
             => new TickleTransformScale<Vector3>(transform, Vector3.one * start, Vector3.one * end, duration, ease, onComplete);
 
         public static Tickle<Vector3> LerpPosition(this Transform transform, Vector3 start, Vector3 end, float duration, Ease ease = Ease.None, Action onComplete = null)
             => new TickleTransformPosition<Vector3>(transform, start, end, duration, ease, onComplete);
 
-        public static Tickle<Quaternion> LerpRotation(this Transform transform, Vector3 eulerStart, Vector3 eulerEnd, float duration, Ease ease = Ease.None, Action onComplete = null)
-            => new TickleTransformRotation<Quaternion>(transform, Quaternion.Euler(eulerStart), Quaternion.Euler(eulerEnd), duration, ease, onComplete);
+        public static Tickle<Quaternion> LerpQuaternion(this Transform transform, Vector3 eulerStart, Vector3 eulerEnd, float duration, Ease ease = Ease.None, Action onComplete = null)
+            => new TickleTransformQuaternion<Quaternion>(transform, Quaternion.Euler(eulerStart), Quaternion.Euler(eulerEnd), duration, ease, onComplete);
+
+        public static Tickle<Vector3> LerpRotation(this Transform transform, Vector3 eulerStart, Vector3 eulerEnd, float duration, Ease ease = Ease.None, Action onComplete = null)
+            => new TickleTransformRotation<Vector3>(transform, eulerStart, eulerEnd, duration, ease, onComplete);
 
         public static ITickle[] Start(this ITickle[] tickles)
             => new TickleSet(tickles).Start();
@@ -83,10 +86,17 @@ namespace Tickle
         public override void Update() => _transform.localScale = _value;
     }
 
-    public class TickleTransformRotation<T> : TickleTransform<Quaternion>
+    public class TickleTransformQuaternion<T> : TickleTransform<Quaternion>
     {
-        public TickleTransformRotation(Transform transform, Quaternion start, Quaternion end, float duration, Ease ease, Action onComplete) 
+        public TickleTransformQuaternion(Transform transform, Quaternion start, Quaternion end, float duration, Ease ease, Action onComplete) 
             : base(transform, start, end, duration, ease, onComplete) { }
         public override void Update() => _transform.localRotation = _value;
+    }
+
+    public class TickleTransformRotation<T> : TickleTransform<Vector3>
+    {
+        public TickleTransformRotation(Transform transform, Vector3 start, Vector3 end, float duration, Ease ease, Action onComplete)
+            : base(transform, start, end, duration, ease, onComplete) { }
+        public override void Update() => _transform.localRotation = Quaternion.Euler(_value);
     }
 }
