@@ -12,7 +12,7 @@ A performant, lightweight and intuitive tween library for Unity. Optionally uses
 
 **Note: Tickle is not yet production-ready. We are looking for [contributors](##Support-and-Contribute)!**
 
-## Why "Tickle"
+## ✔️ Why "Tickle"
 
 The name "Tickle" reflects our focus on improving developer experience by building something that is **"small, simple, and fast"**.
 
@@ -30,11 +30,11 @@ There are already many tween libraries out there, but we want to create a librar
 You may read more about the API design decisions and technical implementation details in the [blog](kstan.gitlab.io/tickle-intro).
 
 
-## Getting Started
+## 📖 Getting Started
 
 You may read the complete documentation **[here](kstan.gitlab.io/tickle)**.
 
-### Installation
+### 💻 Installation
 
 Simply download the latest released Unity Asset Package [here](https://github.com/ks-tan/Tickle/releases/).
 
@@ -42,7 +42,7 @@ After installation, please make sure that you go to **"Project Settings" > "Play
 
 > We will support installation via [OpenUPM](https://openupm.com/) and perhaps other methods once we have arrived at a stable first version (i.e., v1.0.0).
 
-### "Tickle" - Creating a simple lerp
+### 🕺 "Tickle" - Creating a simple lerp
 
 A "Tickle" is a simple description of the linear interpolation (i.e. a "Lerp") of a single property.
 
@@ -62,7 +62,7 @@ ITickle tickle = transform
     .Start();
 ```
 
-### "TickleSet" - Creating a set of lerps
+### 🕺💃 "TickleSet" - Creating a set of lerps
 
 A "TickleSet" is a set of Tickles that run parallel to each other. Intuitively, a TickleSet is simply an array of Tickles.
 
@@ -86,7 +86,7 @@ var tickleSet = new TickleSet()
     .Start();
 ```
 
-### "TickleChain" - Creating a sequence of lerps
+### 🔗 "TickleChain" - Creating a sequence of lerps
 
 A "TickleChain" is a sequence of Tickles that run one after another. Intuitively, it is an array of TickleSets, or a 2D array of Tickles!
 
@@ -119,13 +119,23 @@ var tickleChain = new TickleChain()
 
 Again, you are encouraged to write this the way you find to be the clearest/prettiest to you.
 
-### Enabling Unity's Burst + Job System
+### 📈 Easing functions
+
+Tickle supports a limited set of easing functions. Here is an example:
+
+```c++
+transform.LerpPosition(start, end, duration, Ease.InQuad);
+```
+
+We are currently working to support even more easing functions, as well as the ability for users to define their own. 
+
+### ⚡ Enabling Unity's Burst + Job System
 
 If you'd like to tap on Unity's Burst compiler and Jobs system for high performance tweening of an extremely large number of objects, you may install the Burst package from Unity's Package Manager.
 
 After that, please enter "ENABLE_BURST" in "Project Settings" > "Player" > "Other Settings" > "Scripting Define Symbols".
 
-### Want customizability / even more performance?
+### 🛠️ Want customizability / even more performance?
 
 Tickle is actually a wrapper around a highly-performant custom lerp library that features zero-allocation and no boxing, and works with contiguous memory to avoid cache misses. In comparison, Tickle introduces just slight overhead in order to provide QoL features such as sequencing tweens (via "TickleChains") and supporting action delegates (i.e., "onComplete" callbacks).
 
