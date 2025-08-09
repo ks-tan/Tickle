@@ -147,8 +147,8 @@ We are interested in showcasing projects that use Tickle! Please get in touch wi
 
 ## Support and Contribute
 
-- Bug reports: [Issues](https://github.com/ks-tan/Tickle/issues)
+- Bugs and issues: [Issues](https://github.com/ks-tan/Tickle/issues)
 - Questions and feature requests: [Discussions](https://github.com/ks-tan/Tickle/discussions)
 - To become a contributor, feel free to contact me at tankangsoon@gmail.com
 
-For contributors, please refer to the [Discussions](https://github.com/ks-tan/Tickle/discussions) page for a list of potential tasks you could work on. Thank you.
+For contributors, please refer to the [Issues](https://github.com/ks-tan/Tickle/issues) page for a list of potential tasks you could work on. For newcomers, pay attention to the **"good first task"** label. Thank you!
