@@ -1,5 +1,6 @@
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
+using UnityEngine;
 
 namespace Tickle.Collections
 {
@@ -40,13 +41,33 @@ namespace Tickle.Collections
             if (_denseArray.IsCreated)  _denseArray.Dispose();
         }
 
-        public int Add(T data)
+        public int GetFreeIndex()
+        { 
+            return _freeSparseIndex; 
+        }
+
+        public int GetDenseArrayCount()
+        {
+            return _denseArrayCount;
+        }
+
+        public NativeArray<T> GetDenseArray()
+        {
+            return _denseArray;
+        }
+
+        public int Add(T data, int index = -1)
         {
             SparseItem* sparsePtr = (SparseItem*)NativeArrayUnsafeUtility.GetUnsafePtr(_sparseArray);
 
             // Point currently available sparse item to a dense array slot
             // and update linked list for tracking next free sparse item
-            var index = _freeSparseIndex;
+            index = index == -1 ? _freeSparseIndex : index;
+            if (sparsePtr[index].DenseArrayIndex != -1)
+            {
+                Debug.Log("SparseSet insertion failed: Specified ID is already taken");
+                return -1;
+            }
             sparsePtr[index].DenseArrayIndex = _denseArrayCount;
 
             // Storing data in dense array
