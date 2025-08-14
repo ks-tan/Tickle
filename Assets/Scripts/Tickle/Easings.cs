@@ -1,6 +1,5 @@
 #if ENABLE_BURST
 using Unity.Burst;
-using UnityEngine;
 #endif
 
 namespace Tickle.Easings
