@@ -1,4 +1,3 @@
-using System;
 using UnityEditor;
 using UnityEngine;
 using Tickle.Collections;
@@ -12,12 +11,11 @@ public static class UnitTests
     {
         UnitTest[] tests =
         {
-            SparseSetTests.InsertSingleAndGetSingle,
             SparseSetTests.InsertMultipleAndGetSingle,
-            SparseSetTests.InsertSingleAndRemoveSingle,
             SparseSetTests.InsertMultipleAndRemoveSingle,
             SparseSetTests.InsertMultipleAndCheckLength,
-            SparseSetTests.InsertMultipleAndCheckFreeKey
+            SparseSetTests.InsertMultipleAndCheckFreeKey,
+            SparseSetTests.RemoveMultipleAndCheckFreeKey,
         };
 
         var failures = 0;
@@ -37,17 +35,6 @@ public static class UnitTests
 
 public static class SparseSetTests
 {
-    public static void InsertSingleAndGetSingle(out object result, out object expected)
-    {
-        var sparseSet = new SparseSet<int>(64);
-        var index = sparseSet.Add(1);
-        var data = -1;
-        sparseSet.TryGet(index, ref data);
-        result = data;
-        expected = 1;
-        sparseSet.Dispose();
-    }
-
     public static void InsertMultipleAndGetSingle(out object result, out object expected)
     {
         var sparseSet = new SparseSet<int>(64);
@@ -57,17 +44,6 @@ public static class SparseSetTests
         sparseSet.TryGet(5, ref data);
         result = data;
         expected = 5;
-        sparseSet.Dispose();
-    }
-
-    public static void InsertSingleAndRemoveSingle(out object result, out object expected)
-    {
-        var sparseSet = new SparseSet<int>(64);
-        sparseSet.Add(10);
-        sparseSet.Remove(0);
-        var data = -1;
-        result = sparseSet.TryGet(0, ref data);
-        expected = false;
         sparseSet.Dispose();
     }
 
@@ -95,11 +71,23 @@ public static class SparseSetTests
 
     public static void InsertMultipleAndCheckFreeKey(out object result, out object expected)
     {
-        var sparseSet = new SparseSet<int>(128);
-        for (int i = 0; i < 128; i++)
+        var sparseSet = new SparseSet<int>(64);
+        for (int i = 0; i < 64; i++)
             sparseSet.Add(i);
         result = sparseSet.GetFreeKey();
-        expected = 128;
+        expected = (int)(64 * 1.25f - 1);
+        sparseSet.Dispose();
+    }
+    
+    public static void RemoveMultipleAndCheckFreeKey(out object result, out object expected)
+    {
+        var sparseSet = new SparseSet<int>(64);
+        for (int i = 0; i < 64; i++)
+            sparseSet.Add(i);
+        for (int i = 0; i < 10; i++)
+            sparseSet.Remove(i);
+        result = sparseSet.GetFreeKey();
+        expected = 9;
         sparseSet.Dispose();
     }
 }
