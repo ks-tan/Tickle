@@ -56,31 +56,27 @@ namespace Tickle.Collections
             return _denseData;
         }
 
-        public int Add(T data, int index = -1)
+        public int Add(T data)
         {
             SparseKey* sparsePtr = (SparseKey*)NativeArrayUnsafeUtility.GetUnsafePtr(_sparseKeys);
 
+            var freeKey = _nextFreeKey;
+
             // Point currently available sparse item to a dense array slot
             // and update linked list for tracking next free sparse item
-            index = index == -1 ? _nextFreeKey : index;
-            if (sparsePtr[index].DataIndex != -1)
-            {
-                Debug.Log("SparseSet insertion failed: Specified ID is already taken");
-                return -1;
-            }
-            sparsePtr[index].DataIndex = _dataCount;
+            sparsePtr[freeKey].DataIndex = _dataCount;
 
             // Storing data in dense data array
-            _denseData[sparsePtr[index].DataIndex] = data;
+            _denseData[sparsePtr[freeKey].DataIndex] = data;
 
             // Update remaining state properties of sparse set
-            _nextFreeKey = sparsePtr[index].NextFreeKey;
+            _nextFreeKey = sparsePtr[freeKey].NextFreeKey;
             _dataCount++;
 
             // Make sure that we have enough space to insert the next T item
             Resize();
 
-            return index;
+            return freeKey;
         }
         
         public void Remove(int id)

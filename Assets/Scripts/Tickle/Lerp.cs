@@ -41,19 +41,12 @@ namespace Tickle.Lerp
             LerpManager<Vector4>.UpdateAll();
             LerpManager<Quaternion>.UpdateAll();
 #endif
-            LerpManager<float>.CompactRunningProcessArray();
-            LerpManager<Color>.CompactRunningProcessArray();
-            LerpManager<Vector2>.CompactRunningProcessArray();
-            LerpManager<Vector3>.CompactRunningProcessArray();
-            LerpManager<Vector4>.CompactRunningProcessArray();
-            LerpManager<Quaternion>.CompactRunningProcessArray();
-
-            LerpManager<float>.CompactCreatedProcessArray();
-            LerpManager<Color>.CompactCreatedProcessArray();
-            LerpManager<Vector2>.CompactCreatedProcessArray();
-            LerpManager<Vector3>.CompactCreatedProcessArray();
-            LerpManager<Vector4>.CompactCreatedProcessArray();
-            LerpManager<Quaternion>.CompactCreatedProcessArray();
+            LerpManager<float>.CompactProcessArray();
+            LerpManager<Color>.CompactProcessArray();
+            LerpManager<Vector2>.CompactProcessArray();
+            LerpManager<Vector3>.CompactProcessArray();
+            LerpManager<Vector4>.CompactProcessArray();
+            LerpManager<Quaternion>.CompactProcessArray();
         }
 
         private void OnDestroy()
@@ -117,10 +110,10 @@ namespace Tickle.Lerp
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public bool Update()
+        public void Update()
         {
-            if (!IsRunning) return IsDone;
-            if (IsDone) return IsDone;
+            if (!IsRunning) return;
+            if (IsDone) return;
             if (ElapsedTime <= Duration)
             {
                 var value = LerpManager<T>.ApplyLerp(Start, End, EaseFunctions.Apply(ElapsedTime / Duration, EaseType));
@@ -129,7 +122,6 @@ namespace Tickle.Lerp
             }
             if (ElapsedTime > Duration)
                 SetIsDone(true);
-            return IsDone;
         }
     }
 
@@ -143,13 +135,7 @@ namespace Tickle.Lerp
         private static LerpType _lerpType;
 #endif
         
-        // Note: _createdProcesses and _runningProcesses do not hold exact references
-        // of the same Lerp<T> data, but copies. When a process is only created but
-        // not running, we only check it from the _createdProcesses array. If a
-        // process is running, we only check it from the _runningProcesses array.
-        private static SparseSet<Lerp<T>> _createdProcesses;
-        private static SparseSet<Lerp<T>> _runningProcesses;
-        private static NativeArray<bool> _hasDoneProcesses;
+        private static SparseSet<Lerp<T>> _processes;
 
         private static void Setup()
         {
@@ -172,10 +158,7 @@ namespace Tickle.Lerp
             else if (typeof(T) == typeof(Vector4)) _lerpType = LerpType.Vec4;
             else if (typeof(T) == typeof(Quaternion)) _lerpType = LerpType.Quat;
 #endif
-            _runningProcesses = new SparseSet<Lerp<T>>(64);
-            _createdProcesses = new SparseSet<Lerp<T>>(64);
-            _hasDoneProcesses = new NativeArray<bool>(1, Allocator.Persistent);
-
+            _processes = new SparseSet<Lerp<T>>(64);
             _hasSetup = true;
         }
 
@@ -196,20 +179,15 @@ namespace Tickle.Lerp
 
         public static bool TryGetRunningProcess(int id, ref Lerp<T> processRef)
         {
-            return _runningProcesses.TryGet(id, ref processRef);
-        }
-
-        public static bool TryGetCreatedProcess(int id, ref Lerp<T> processRef)
-        {
-            return _createdProcesses.TryGet(id,ref processRef);
+            return _processes.TryGet(id, ref processRef);
         }
 
         public static int Create(ref T target, ref bool doneHandle, T start, T end, float duration, Ease ease = Ease.None)
         {
             if (!_hasSetup) Setup();
-            var process = new Lerp<T>(_createdProcesses.GetFreeKey(), ref target, start, end, duration, ease);
+            var process = new Lerp<T>(_processes.GetFreeKey(), ref target, start, end, duration, ease);
             process.BindDoneHandle(ref doneHandle);
-            _createdProcesses.Add(process);
+            _processes.Add(process);
             return process.Id;
         }
 
@@ -228,30 +206,14 @@ namespace Tickle.Lerp
 
         public static void Start(int id)
         {
-            // TODO: We should remove the use of TryGetRunningProcess and the use of ref keyword.
-            // Instead, put a list of processIds to be started/resumed/etc in their respective list
-            // Then we update each lerp's internal state together during the update loop.
-            // There is more complexity, but the flow of data will be cleaner and more debuggable
-            // than throwing refs around.
             Lerp<T> process = default;
             var isRunningProcessFound = TryGetRunningProcess(id, ref process);
             if (!isRunningProcessFound)
-            {
-                var isCreatedProcessFound = TryGetCreatedProcess(id, ref process);
-                if (!isCreatedProcessFound) return;
-                *process.Target = process.Start;
-                process.IsRunning = true;
-                process.SetIsDone(false);
-                process.ElapsedTime = 0;
-                _runningProcesses.Add(process, process.Id);
-            }
-            else
-            {
-                *process.Target = process.Start;
-                process.IsRunning = true;
-                process.SetIsDone(false);
-                process.ElapsedTime = 0;
-            }
+                return;
+            *process.Target = process.Start;
+            process.IsRunning = true;
+            process.SetIsDone(false);
+            process.ElapsedTime = 0;
         }
 
         public static void Resume(int id)
@@ -272,28 +234,24 @@ namespace Tickle.Lerp
 
         public static void Stop(int id)
         {
-            // This is an API method for manually stopping a lerp, i.e., not to
-            // be called at the natural end of a lerp. We choose the nuclear
-            // option, that is to immediately remove this lerp from running processes
-
             Lerp<T> process = default;
             if (!TryGetRunningProcess(id, ref process)) return;
             process.SetIsDone(true);
-            _runningProcesses.Remove(id);
+            process.IsRunning = false;
         }
 
         public static void Destroy(int id)
         {
             Stop(id);
-            _createdProcesses.Remove(id);
+            _processes.Remove(id);
         }
 
         public static void UpdateAll()
         {
             if (!_hasSetup) return;
-            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses.GetDenseData());
-            for (int i = 0; i < _runningProcesses.GetDataCount(); i++)
-                _hasDoneProcesses[0] = ptr[i].Update();
+            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_processes.GetDenseData());
+            for (int i = 0; i < _processes.GetDataCount(); i++)
+                ptr[i].Update();
         }
 
 #if ENABLE_BURST
@@ -303,11 +261,10 @@ namespace Tickle.Lerp
         {
             var job = new LerpUpdateParallelJob() {
                 DeltaTime = Time.deltaTime,
-                Processes = _runningProcesses.GetDenseData(),
+                Processes = _processes.GetDenseData(),
                 TypeLerp = _lerpType,
-                HasDoneProcesses = _hasDoneProcesses,
             };
-            JobHandle handle = job.Schedule(_runningProcesses.GetDataCount(), _runningProcesses.GetDataCount());
+            JobHandle handle = job.Schedule(_processes.GetDataCount(), _processes.GetDataCount());
             handle.Complete();
         }
 
@@ -316,7 +273,6 @@ namespace Tickle.Lerp
         {
             [NativeDisableParallelForRestriction]
             public NativeArray<Lerp<T>> Processes;
-            public NativeArray<bool> HasDoneProcesses;
             public float DeltaTime;
             public LerpType TypeLerp;
 
@@ -379,7 +335,6 @@ namespace Tickle.Lerp
                 if (process.ElapsedTime > process.Duration)
                 {
                     process.SetIsDone(true);
-                    HasDoneProcesses[0] = true;
                 }
 
                 Processes[i] = process;
@@ -387,36 +342,10 @@ namespace Tickle.Lerp
         }
 #endif
 
-        public static void CompactCreatedProcessArray()
+        public static void CompactProcessArray()
         {
             if (!_hasSetup) return;
-            _createdProcesses.Resize();
-        }
-
-        public static void CompactRunningProcessArray()
-        {
-            if (!_hasSetup) return;
-
-            // TODO: Instead of just getting a true/false value, it would be
-            // better to know the exact number of done processes, so we do not
-            // have to loop through the whole list all the time.
-            if (_hasDoneProcesses[0])
-            {
-                Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses.GetDenseData());
-                int index = 0;
-                while (index < _runningProcesses.GetDataCount())
-                {
-                    if (!ptr[index].IsDone)
-                    {
-                        index++;
-                        continue;
-                    }
-                    _runningProcesses.Remove(index);
-                }
-                _hasDoneProcesses[0] = false;
-            }
-
-            _runningProcesses.Resize();
+            _processes.Resize();
         }
 
         public static T ApplyLerp(T a, T b, float t) => _lerp(a, b, t);
@@ -435,14 +364,8 @@ namespace Tickle.Lerp
         public static void Cleanup()
         {
             if (_hasSetup)
-            {
-                _runningProcesses.Dispose();
-                _createdProcesses.Dispose();
-                _hasDoneProcesses.Dispose();
-            }
-            _runningProcesses = default;
-            _createdProcesses = default;
-            _hasDoneProcesses = default;
+                _processes.Dispose();
+            _processes = default;
         }
     }
 }
