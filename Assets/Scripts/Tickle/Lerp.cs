@@ -3,6 +3,7 @@ using Tickle.Easings;
 using Unity.Collections.LowLevel.Unsafe;
 using UnityEngine;
 using Unity.Collections;
+using Tickle.Collections;
 
 #if ENABLE_BURST
 using Unity.Burst;
@@ -134,7 +135,7 @@ namespace Tickle.Lerp
 
     public static unsafe class LerpManager<T> where T : unmanaged
     {
-        private static int _rollingId;
+        private static bool _hasSetup = false;
         private static delegate*<T, T, float, T> _lerp;
 
 #if ENABLE_BURST
@@ -146,10 +147,8 @@ namespace Tickle.Lerp
         // of the same Lerp<T> data, but copies. When a process is only created but
         // not running, we only check it from the _createdProcesses array. If a
         // process is running, we only check it from the _runningProcesses array.
-        private static int _createdProcessCount;
-        private static int _runningProcessCount;
-        private static NativeArray<Lerp<T>> _createdProcesses;
-        private static NativeArray<Lerp<T>> _runningProcesses;
+        private static SparseSet<Lerp<T>> _createdProcesses;
+        private static SparseSet<Lerp<T>> _runningProcesses;
         private static NativeArray<bool> _hasDoneProcesses;
 
         private static void Setup()
@@ -173,9 +172,11 @@ namespace Tickle.Lerp
             else if (typeof(T) == typeof(Vector4)) _lerpType = LerpType.Vec4;
             else if (typeof(T) == typeof(Quaternion)) _lerpType = LerpType.Quat;
 #endif
-            _runningProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
-            _createdProcesses = new NativeArray<Lerp<T>>(64, Allocator.Persistent);
+            _runningProcesses = new SparseSet<Lerp<T>>(64);
+            _createdProcesses = new SparseSet<Lerp<T>>(64);
             _hasDoneProcesses = new NativeArray<bool>(1, Allocator.Persistent);
+
+            _hasSetup = true;
         }
 
         private static bool TryGetProcess(int id, NativeArray<Lerp<T>> array, int count, ref Lerp<T> processRef)
@@ -195,23 +196,20 @@ namespace Tickle.Lerp
 
         public static bool TryGetRunningProcess(int id, ref Lerp<T> processRef)
         {
-            return TryGetProcess(id, _runningProcesses, _runningProcessCount, ref processRef);
+            return _runningProcesses.TryGet(id, ref processRef);
         }
 
         public static bool TryGetCreatedProcess(int id, ref Lerp<T> processRef)
         {
-            return TryGetProcess(id, _createdProcesses, _createdProcessCount, ref processRef);
+            return _createdProcesses.TryGet(id,ref processRef);
         }
 
         public static int Create(ref T target, ref bool doneHandle, T start, T end, float duration, Ease ease = Ease.None)
         {
-            if (!_createdProcesses.IsCreated)
-                Setup();
-            var process = new Lerp<T>(_rollingId++, ref target, start, end, duration, ease);
+            if (!_hasSetup) Setup();
+            var process = new Lerp<T>(_createdProcesses.GetFreeKey(), ref target, start, end, duration, ease);
             process.BindDoneHandle(ref doneHandle);
-            if (_createdProcessCount >= _createdProcesses.Length)
-                ResizeCreatedProcessesArray(_createdProcesses.Length * 2);
-            _createdProcesses[_createdProcessCount++] = process;
+            _createdProcesses.Add(process);
             return process.Id;
         }
 
@@ -245,9 +243,7 @@ namespace Tickle.Lerp
                 process.IsRunning = true;
                 process.SetIsDone(false);
                 process.ElapsedTime = 0;
-                if (_runningProcessCount >= _runningProcesses.Length)
-                    ResizeRunningProcessesArray(_runningProcesses.Length * 2);
-                _runningProcesses[_runningProcessCount++] = process;
+                _runningProcesses.Add(process, process.Id);
             }
             else
             {
@@ -283,45 +279,20 @@ namespace Tickle.Lerp
             Lerp<T> process = default;
             if (!TryGetRunningProcess(id, ref process)) return;
             process.SetIsDone(true);
-
-            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
-            int index = 0;
-            while (index < _runningProcessCount)
-            {
-                if (ptr[index].Id == id)
-                {
-                    ptr[index] = ptr[_runningProcessCount - 1];
-                    _runningProcessCount--;
-                    break;
-                }
-                index++;
-            }
+            _runningProcesses.Remove(id);
         }
 
         public static void Destroy(int id)
         {
             Stop(id);
-
-            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_createdProcesses);
-            int index = 0;
-            while (index < _createdProcessCount)
-            {
-                if (ptr[index].Id == id)
-                {
-                    // Remove from list by swapping with last element and reduce count
-                    ptr[index] = ptr[_createdProcessCount - 1];
-                    _createdProcessCount--;
-                    break;
-                }
-                else index++;
-            }
+            _createdProcesses.Remove(id);
         }
 
         public static void UpdateAll()
         {
-            if (!_runningProcesses.IsCreated) return;
-            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
-            for (int i = 0; i < _runningProcessCount; i++)
+            if (!_hasSetup) return;
+            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses.GetDenseData());
+            for (int i = 0; i < _runningProcesses.GetDataCount(); i++)
                 _hasDoneProcesses[0] = ptr[i].Update();
         }
 
@@ -332,11 +303,11 @@ namespace Tickle.Lerp
         {
             var job = new LerpUpdateParallelJob() {
                 DeltaTime = Time.deltaTime,
-                Processes = _runningProcesses,
+                Processes = _runningProcesses.GetDenseData(),
                 TypeLerp = _lerpType,
                 HasDoneProcesses = _hasDoneProcesses,
             };
-            JobHandle handle = job.Schedule(_runningProcessCount, _runningProcessCount);
+            JobHandle handle = job.Schedule(_runningProcesses.GetDataCount(), _runningProcesses.GetDataCount());
             handle.Complete();
         }
 
@@ -418,61 +389,34 @@ namespace Tickle.Lerp
 
         public static void CompactCreatedProcessArray()
         {
-            if (!_createdProcesses.IsCreated) return;
-            if (_createdProcessCount < 64) return;
-            if (_createdProcessCount > _createdProcesses.Length / 3) return;
-            ResizeCreatedProcessesArray(_createdProcesses.Length / 2);
+            if (!_hasSetup) return;
+            _createdProcesses.Resize();
         }
 
         public static void CompactRunningProcessArray()
         {
-            if (!_runningProcesses.IsCreated) return;
-            if (!_hasDoneProcesses.IsCreated) return;
+            if (!_hasSetup) return;
 
             // TODO: Instead of just getting a true/false value, it would be
             // better to know the exact number of done processes, so we do not
             // have to loop through the whole list all the time.
             if (_hasDoneProcesses[0])
             {
-                Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses);
+                Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_runningProcesses.GetDenseData());
                 int index = 0;
-                while (index < _runningProcessCount)
+                while (index < _runningProcesses.GetDataCount())
                 {
                     if (!ptr[index].IsDone)
                     {
                         index++;
                         continue;
                     }
-                    // Remove from list by swapping with last element and reduce count
-                    ptr[index] = ptr[_runningProcessCount - 1];
-                    _runningProcessCount--;
+                    _runningProcesses.Remove(index);
                 }
                 _hasDoneProcesses[0] = false;
             }
 
-            if (_runningProcessCount < 64) return;
-            if (_runningProcessCount > _runningProcesses.Length / 3) return;
-            ResizeRunningProcessesArray(_runningProcesses.Length / 2);
-        }
-
-        private static void ResizeCreatedProcessesArray(int newSize)
-        {
-            ResizeProcessesArray(newSize, ref _createdProcesses, _createdProcessCount);
-        }
-
-        private static void ResizeRunningProcessesArray(int newSize)
-        {
-            ResizeProcessesArray(newSize, ref _runningProcesses, _runningProcessCount);
-        }
-
-        // TODO: Instead of resizing, look into implementing LitMotion's SparseSet
-        // for O(1) search, insert and removals
-        private static void ResizeProcessesArray(int newSize, ref NativeArray<Lerp<T>> array, int elementsToCopy)
-        {
-            var newArray = new NativeArray<Lerp<T>>(newSize, Allocator.Persistent, NativeArrayOptions.ClearMemory);
-            NativeArray<Lerp<T>>.Copy(array, newArray, elementsToCopy);
-            array.Dispose();
-            array = newArray;
+            _runningProcesses.Resize();
         }
 
         public static T ApplyLerp(T a, T b, float t) => _lerp(a, b, t);
@@ -490,17 +434,15 @@ namespace Tickle.Lerp
 
         public static void Cleanup()
         {
-            // Release NativeArray memory
-            if (_runningProcesses.IsCreated) _runningProcesses.Dispose(); 
-            if (_createdProcesses.IsCreated) _createdProcesses.Dispose();
-            if (_hasDoneProcesses.IsCreated) _hasDoneProcesses.Dispose();
-
+            if (_hasSetup)
+            {
+                _runningProcesses.Dispose();
+                _createdProcesses.Dispose();
+                _hasDoneProcesses.Dispose();
+            }
             _runningProcesses = default;
             _createdProcesses = default;
             _hasDoneProcesses = default;
-            _runningProcessCount = 0;
-            _createdProcessCount = 0;
-            _rollingId = 0;
         }
     }
 }
