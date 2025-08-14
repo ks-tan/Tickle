@@ -75,7 +75,7 @@ public static class SparseSetTests
         for (int i = 0; i < 64; i++)
             sparseSet.Add(i);
         result = sparseSet.GetFreeKey();
-        expected = (int)(64 * 1.25f - 1);
+        expected = 64;
         sparseSet.Dispose();
     }
     

@@ -112,19 +112,19 @@ namespace Tickle.Collections
             // Increase size of sparse keys array
             // Note: We never reduce size of sparse array because it might
             // break the linked list that is tracking free sparse keys
-            if (_dataCount > 0.75f * _sparseKeys.Length)
+            if (_dataCount >= _sparseKeys.Length)
                 ResizeKeysArray(_sparseKeys.Length * 2);
 
             // Increase size of both dense data arrays
-            if (_dataCount > 0.75f * _denseData.Length)
+            if (_dataCount >= _denseData.Length)
             {
                 ResizeDataArray(_denseData.Length * 2);
                 return;
             }
 
             // Reduce size of just the dense data array
-            if (_denseData.Length / 2f > _minimumSize && 
-                _dataCount < 0.25f * _denseData.Length)
+            if (_denseData.Length / 2f > _minimumSize &&
+                _denseData.Length / 2f > _dataCount)
             {
                 ResizeDataArray(_denseData.Length / 2);
                 return;
