@@ -33,16 +33,15 @@ public static class UnitTests
     }
 }
 
-public static class SparseSetTests
+public static unsafe class SparseSetTests
 {
     public static void InsertMultipleAndGetSingle(out object result, out object expected)
     {
         var sparseSet = new SparseSet<int>(64);
         for (int i = 0; i < 64; i++)
             sparseSet.Add(i);
-        var data = -1;
-        sparseSet.TryGet(5, ref data);
-        result = data;
+        sparseSet.TryGet(5, out var data);
+        result = *data;
         expected = 5;
         sparseSet.Dispose();
     }
@@ -53,8 +52,7 @@ public static class SparseSetTests
         for (int i = 0; i < 64; i++)
             sparseSet.Add(i);
         sparseSet.Remove(10);
-        var data = -1;
-        result = sparseSet.TryGet(10, ref data);
+        result = sparseSet.TryGet(10, out var _);
         expected = false;
         sparseSet.Dispose();
     }

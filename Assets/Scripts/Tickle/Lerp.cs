@@ -177,11 +177,6 @@ namespace Tickle.Lerp
             return false;
         }
 
-        public static bool TryGetRunningProcess(int id, ref Lerp<T> processRef)
-        {
-            return _processes.TryGet(id, ref processRef);
-        }
-
         public static int Create(ref T target, ref bool doneHandle, T start, T end, float duration, Ease ease = Ease.None)
         {
             if (!_hasSetup) Setup();
@@ -206,38 +201,33 @@ namespace Tickle.Lerp
 
         public static void Start(int id)
         {
-            Lerp<T> process = default;
-            var isRunningProcessFound = TryGetRunningProcess(id, ref process);
-            if (!isRunningProcessFound)
-                return;
-            *process.Target = process.Start;
-            process.IsRunning = true;
-            process.SetIsDone(false);
-            process.ElapsedTime = 0;
+            var isProcessFound = _processes.TryGet(id, out Lerp<T>* process);
+            if (!isProcessFound) return;
+            *process->Target = process->Start;
+            process->IsRunning = true;
+            process->SetIsDone(false);
+            process->ElapsedTime = 0;
         }
 
         public static void Resume(int id)
         {
-            Lerp<T> process = default;
-            var isFound = TryGetRunningProcess(id, ref process);
+            var isFound = _processes.TryGet(id, out Lerp<T>* process);
             if (!isFound) return;
-            process.IsRunning = true;
+            process->IsRunning = true;
         }
 
         public static void Pause(int id)
         {
-            Lerp<T> process = default;
-            var isFound = TryGetRunningProcess(id, ref process);
+            var isFound = _processes.TryGet(id, out Lerp<T>* process);
             if (!isFound) return;
-            process.IsRunning = false;
+            process->IsRunning = false;
         }
 
         public static void Stop(int id)
         {
-            Lerp<T> process = default;
-            if (!TryGetRunningProcess(id, ref process)) return;
-            process.SetIsDone(true);
-            process.IsRunning = false;
+            if (!_processes.TryGet(id, out Lerp<T>* process)) return;
+            process->SetIsDone(true);
+            process->IsRunning = false;
         }
 
         public static void Destroy(int id)

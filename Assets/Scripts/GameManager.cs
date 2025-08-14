@@ -41,12 +41,13 @@ public unsafe class GameManager : MonoBehaviour
             .Join(car.transform.LerpPosition(shrinkPos, neutralPos, duration: 0.5f, Ease.OutQuad))
             .Join(car.transform.LerpRotation(startRotation, endRotation, duration: 0.2f, Ease.OutQuad));
 
-        new TickleChain()
+        var sequence = new TickleChain()
             .Chain(Tickler.WaitForSeconds(1))
             .Chain(carEntry)
             .Chain(Tickler.WaitForSeconds(0.25f))
             .Chain(carShrink)
-            .Chain(carGrow)
-            .Start();
+            .Chain(carGrow);
+
+        sequence.Start();
     }
 }

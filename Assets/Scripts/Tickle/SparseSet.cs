@@ -93,13 +93,15 @@ namespace Tickle.Collections
             _nextFreeKey = id;
         }
 
-        public bool TryGet(int id, ref T data)
+        public bool TryGet(int id, out T* data)
         {
-            if (_sparseKeys[id].DataIndex == -1)
+            if (_sparseKeys[id].DataIndex == -1 || 
+                _sparseKeys[id].DataIndex >= _dataCount)
+            {
+                data = null;
                 return false;
-            if (_sparseKeys[id].DataIndex >= _dataCount)
-                return false;
-            data = _denseData[_sparseKeys[id].DataIndex];
+            }
+            data = (T*)NativeArrayUnsafeUtility.GetUnsafePtr(_denseData) + _sparseKeys[id].DataIndex;
             return true;
         }
 
