@@ -4,78 +4,78 @@ using UnityEngine;
 
 namespace Tickle.Collections
 {
-    public struct SparseItem
+    public struct SparseKey
     {
-        public int DenseArrayIndex;
-        public int NextFree;
+        public int DataIndex;
+        public int NextFreeKey;
     }
 
     public unsafe struct SparseSet<T> where T : unmanaged
     {
-        private NativeArray<SparseItem> _sparseArray;
-        private NativeArray<T> _denseArray;
-        private int _freeSparseIndex;
-        private int _denseArrayCount;
+        private NativeArray<SparseKey> _sparseKeys;
+        private NativeArray<T> _denseData;
+        private int _nextFreeKey;
+        private int _dataCount;
         private int _minimumSize;
 
         public SparseSet(int size)
         {
             _minimumSize = size;
-            _freeSparseIndex = 0;
-            _denseArrayCount = 0;
-            _sparseArray = new NativeArray<SparseItem>(size, Allocator.Persistent);
-            _denseArray = new NativeArray<T>(size, Allocator.Persistent);
+            _nextFreeKey = 0;
+            _dataCount = 0;
+            _sparseKeys = new NativeArray<SparseKey>(size, Allocator.Persistent);
+            _denseData = new NativeArray<T>(size, Allocator.Persistent);
             
             for(int i = 0; i < size; i++)
             {
-                _sparseArray[i] = new SparseItem() {
-                    DenseArrayIndex = -1,
-                    NextFree = i >= size - 1 ? -1 : i + 1
+                _sparseKeys[i] = new SparseKey() {
+                    DataIndex = -1,
+                    NextFreeKey = i >= size - 1 ? -1 : i + 1
                 };
             }
         }
 
         public void Dispose()
         {
-            if (_sparseArray.IsCreated) _sparseArray.Dispose();
-            if (_denseArray.IsCreated)  _denseArray.Dispose();
+            if (_sparseKeys.IsCreated) _sparseKeys.Dispose();
+            if (_denseData.IsCreated)  _denseData.Dispose();
         }
 
-        public int GetFreeIndex()
+        public int GetFreeKey()
         { 
-            return _freeSparseIndex; 
+            return _nextFreeKey; 
         }
 
-        public int GetDenseArrayCount()
+        public int GetDataCount()
         {
-            return _denseArrayCount;
+            return _dataCount;
         }
 
-        public NativeArray<T> GetDenseArray()
+        public NativeArray<T> GetDenseData()
         {
-            return _denseArray;
+            return _denseData;
         }
 
         public int Add(T data, int index = -1)
         {
-            SparseItem* sparsePtr = (SparseItem*)NativeArrayUnsafeUtility.GetUnsafePtr(_sparseArray);
+            SparseKey* sparsePtr = (SparseKey*)NativeArrayUnsafeUtility.GetUnsafePtr(_sparseKeys);
 
             // Point currently available sparse item to a dense array slot
             // and update linked list for tracking next free sparse item
-            index = index == -1 ? _freeSparseIndex : index;
-            if (sparsePtr[index].DenseArrayIndex != -1)
+            index = index == -1 ? _nextFreeKey : index;
+            if (sparsePtr[index].DataIndex != -1)
             {
                 Debug.Log("SparseSet insertion failed: Specified ID is already taken");
                 return -1;
             }
-            sparsePtr[index].DenseArrayIndex = _denseArrayCount;
+            sparsePtr[index].DataIndex = _dataCount;
 
-            // Storing data in dense array
-            _denseArray[sparsePtr[index].DenseArrayIndex] = data;
+            // Storing data in dense data array
+            _denseData[sparsePtr[index].DataIndex] = data;
 
             // Update remaining state properties of sparse set
-            _freeSparseIndex = sparsePtr[index].NextFree;
-            _denseArrayCount++;
+            _nextFreeKey = sparsePtr[index].NextFreeKey;
+            _dataCount++;
 
             // Make sure that we have enough space to insert the next T item
             Resize();
@@ -85,80 +85,82 @@ namespace Tickle.Collections
         
         public void Remove(int id)
         {
-            SparseItem* sparsePtr = (SparseItem*)NativeArrayUnsafeUtility.GetUnsafePtr(_sparseArray);
+            SparseKey* sparsePtr = (SparseKey*)NativeArrayUnsafeUtility.GetUnsafePtr(_sparseKeys);
 
-            // Update corresponding sparse item
-            sparsePtr[id].NextFree = _freeSparseIndex;
-            sparsePtr[id].DenseArrayIndex = -1;
-            _freeSparseIndex = id;
+            // Remove item from data array
+            _denseData[sparsePtr[id].DataIndex] = _denseData[_dataCount - 1];
+            _dataCount--;
 
-            // Remove item from array
-            _denseArray[sparsePtr[id].DenseArrayIndex] = _denseArray[_denseArrayCount - 1];
-            _denseArrayCount--;
+            // Update corresponding sparse key
+            sparsePtr[id].NextFreeKey = _nextFreeKey;
+            sparsePtr[id].DataIndex = -1;
+            _nextFreeKey = id;
         }
 
         public bool TryGet(int id, ref T data)
         {
-            if (_sparseArray[id].DenseArrayIndex == -1)
+            if (_sparseKeys[id].DataIndex == -1)
                 return false;
-            data = _denseArray[_sparseArray[id].DenseArrayIndex];
+            if (_sparseKeys[id].DataIndex >= _dataCount)
+                return false;
+            data = _denseData[_sparseKeys[id].DataIndex];
             return true;
         }
 
         public void Resize()
         {
-            // Increase size of sparse array
+            // Increase size of sparse keys array
             // Note: We never reduce size of sparse array because it might
-            // break the linked list that is tracking free sparse items
-            if (_denseArrayCount > 3/4 * _sparseArray.Length)
-                ResizeSparseArray(_sparseArray.Length * 2);
+            // break the linked list that is tracking free sparse keys
+            if (_dataCount > 0.75f * _sparseKeys.Length)
+                ResizeKeysArray(_sparseKeys.Length * 2);
 
-            // Increase size of both dense arrays
-            if (_denseArrayCount > 3/4 * _denseArray.Length)
+            // Increase size of both dense data arrays
+            if (_dataCount > 0.75f * _denseData.Length)
             {
-                ResizeDenseArray(_denseArray.Length * 2);
+                ResizeDataArray(_denseData.Length * 2);
                 return;
             }
 
-            // Reduce size of just the dense array
-            if (_denseArray.Length / 2 > _minimumSize && 
-                _denseArrayCount < 1/4 * _denseArray.Length)
+            // Reduce size of just the dense data array
+            if (_denseData.Length / 2f > _minimumSize && 
+                _dataCount < 0.25f * _denseData.Length)
             {
-                ResizeDenseArray(_denseArray.Length / 2);
+                ResizeDataArray(_denseData.Length / 2);
                 return;
             }
         }
 
-        private void ResizeDenseArray(int newSize)
+        private void ResizeDataArray(int newSize)
         {
             var newArray = new NativeArray<T>(newSize, Allocator.Persistent, NativeArrayOptions.ClearMemory);
-            NativeArray<T>.Copy(_denseArray, newArray, _denseArrayCount);
-            _denseArray.Dispose();
-            _denseArray = newArray;
+            NativeArray<T>.Copy(_denseData, newArray, _dataCount);
+            _denseData.Dispose();
+            _denseData = newArray;
         }
 
-        private void ResizeSparseArray(int newSize)
+        private void ResizeKeysArray(int newSize)
         {
-            var originalLength = _sparseArray.Length;
+            var originalLength = _sparseKeys.Length;
 
-            var newArray = new NativeArray<SparseItem>(newSize, Allocator.Persistent, NativeArrayOptions.ClearMemory);
-            NativeArray<SparseItem>.Copy(_sparseArray, newArray, originalLength);
-            _sparseArray.Dispose();
-            _sparseArray = newArray;
+            var newArray = new NativeArray<SparseKey>(newSize, Allocator.Persistent, NativeArrayOptions.ClearMemory);
+            NativeArray<SparseKey>.Copy(_sparseKeys, newArray, originalLength);
+            _sparseKeys.Dispose();
+            _sparseKeys = newArray;
 
             // Update the linked list with the new entries
             for(int i = originalLength; i < newSize; i++)
             {
-                _sparseArray[i] = new SparseItem()
+                _sparseKeys[i] = new SparseKey()
                 {
-                    DenseArrayIndex = -1,
-                    NextFree = i >= newSize - 1 ? _freeSparseIndex : i + 1
+                    DataIndex = -1,
+                    NextFreeKey = i >= newSize - 1 ? _nextFreeKey : i + 1
                 };
             }
 
-            // The root of the linked list (_freeSparseIndex) shall be the
-            // first item in the new set of created sparse items
-            _freeSparseIndex = originalLength;
+            // The root of the linked list (_nextFreeKey) shall be the
+            // first item in the new set of created sparse keys
+            _nextFreeKey = originalLength;
         }
     }
 }
