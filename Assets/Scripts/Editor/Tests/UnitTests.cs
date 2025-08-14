@@ -5,24 +5,29 @@ using Tickle.Collections;
 
 public static class UnitTests
 {
+    private delegate void UnitTest(out object result, out object expected);
+
     [MenuItem("Tickle/Test")]
     public static void RunTests()
     {
-        Func<bool>[] tests =
+        UnitTest[] tests =
         {
             SparseSetTests.InsertSingleAndGetSingle,
             SparseSetTests.InsertMultipleAndGetSingle,
             SparseSetTests.InsertSingleAndRemoveSingle,
             SparseSetTests.InsertMultipleAndRemoveSingle,
+            SparseSetTests.InsertMultipleAndCheckLength,
+            SparseSetTests.InsertMultipleAndCheckFreeKey
         };
 
         var failures = 0;
 
         foreach(var test in tests)
         {
-            var isSuccess = test.Invoke();
+            test.Invoke(out object result, out object expected);
+            var isSuccess = result.Equals(expected);
             if (!isSuccess) failures++;
-            Debug.Assert(isSuccess, $"Failed {test.Method.Name}");
+            Debug.Assert(isSuccess, $"Failed {test.Method.Name}. Expected {expected} but received {result}");
         }
 
         if (failures == 0)
@@ -32,45 +37,69 @@ public static class UnitTests
 
 public static class SparseSetTests
 {
-    public static bool InsertSingleAndGetSingle()
+    public static void InsertSingleAndGetSingle(out object result, out object expected)
     {
         var sparseSet = new SparseSet<int>(64);
         var index = sparseSet.Add(1);
         var data = -1;
-        var isSuccess = sparseSet.TryGet(index, ref data) && data == 1;
+        sparseSet.TryGet(index, ref data);
+        result = data;
+        expected = 1;
         sparseSet.Dispose();
-        return isSuccess;
     }
 
-    public static bool InsertMultipleAndGetSingle()
+    public static void InsertMultipleAndGetSingle(out object result, out object expected)
     {
         var sparseSet = new SparseSet<int>(64);
         for (int i = 0; i < 64; i++)
             sparseSet.Add(i);
         var data = -1;
-        var isSuccess = sparseSet.TryGet(5, ref data) && data == 5;
+        sparseSet.TryGet(5, ref data);
+        result = data;
+        expected = 5;
         sparseSet.Dispose();
-        return isSuccess;
     }
 
-    public static bool InsertSingleAndRemoveSingle()
+    public static void InsertSingleAndRemoveSingle(out object result, out object expected)
     {
         var sparseSet = new SparseSet<int>(64);
         sparseSet.Add(10);
         sparseSet.Remove(0);
         var data = -1;
-        var isSuccess = !sparseSet.TryGet(0, ref data);
-        return isSuccess;
+        result = sparseSet.TryGet(0, ref data);
+        expected = false;
+        sparseSet.Dispose();
     }
 
-    public static bool InsertMultipleAndRemoveSingle()
+    public static void InsertMultipleAndRemoveSingle(out object result, out object expected)
     {
         var sparseSet = new SparseSet<int>(64);
         for (int i = 0; i < 64; i++)
             sparseSet.Add(i);
         sparseSet.Remove(10);
         var data = -1;
-        var isSuccess = !sparseSet.TryGet(10, ref data);
-        return isSuccess;
+        result = sparseSet.TryGet(10, ref data);
+        expected = false;
+        sparseSet.Dispose();
+    }
+
+    public static void InsertMultipleAndCheckLength(out object result, out object expected)
+    {
+        var sparseSet = new SparseSet<int>(128);
+        for (int i = 0; i < 128; i++)
+            sparseSet.Add(i);
+        result = sparseSet.GetDataCount();
+        expected = 128;
+        sparseSet.Dispose();
+    }
+
+    public static void InsertMultipleAndCheckFreeKey(out object result, out object expected)
+    {
+        var sparseSet = new SparseSet<int>(128);
+        for (int i = 0; i < 128; i++)
+            sparseSet.Add(i);
+        result = sparseSet.GetFreeKey();
+        expected = 128;
+        sparseSet.Dispose();
     }
 }
