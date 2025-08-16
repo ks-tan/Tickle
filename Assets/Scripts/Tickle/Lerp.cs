@@ -83,6 +83,9 @@ namespace Tickle.Lerp
         public bool IsDone;
         private bool* _doneHandle;
 
+        private enum LerpType { Float, Color, Vec2, Vec3, Vec4, Quat }
+        private LerpType _lerpType;
+
         public Lerp(int id, ref T target, T start, T end, float duration, Ease ease = Ease.None)
         {
             Id = id;
@@ -95,6 +98,13 @@ namespace Tickle.Lerp
             IsRunning = false;
             IsDone = false;
             _doneHandle = null;
+
+            _lerpType = LerpType.Float;
+            if (typeof(T) == typeof(Color)) _lerpType = LerpType.Color;
+            else if (typeof(T) == typeof(Vector2)) _lerpType = LerpType.Vec2;
+            else if (typeof(T) == typeof(Vector3)) _lerpType = LerpType.Vec3;
+            else if (typeof(T) == typeof(Vector4)) _lerpType = LerpType.Vec4;
+            else if (typeof(T) == typeof(Quaternion)) _lerpType = LerpType.Quat;
         }
 
         public void BindDoneHandle(ref bool doneHandle)
@@ -110,15 +120,60 @@ namespace Tickle.Lerp
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void Update()
+        public void Update(float deltaTime)
         {
-            if (!IsRunning) return;
-            if (IsDone) return;
+            if (!IsRunning || IsDone) return;
+            
             if (ElapsedTime <= Duration)
             {
-                var value = LerpManager<T>.ApplyLerp(Start, End, EaseFunctions.Apply(ElapsedTime / Duration, EaseType));
-                *Target = value;
-                ElapsedTime += Time.deltaTime;
+                float t = ElapsedTime / Duration;
+                t = EaseFunctions.Apply(t, EaseType);
+
+                // Directly write to target memory using the correct type
+                if (_lerpType == LerpType.Float)
+                {
+                    float start = UnsafeUtility.As<T, float>(ref Start);
+                    float end = UnsafeUtility.As<T, float>(ref End);
+                    float result = math.lerp(start, end, t);
+                    UnsafeUtility.WriteArrayElement(Target, 0, result);
+                }
+                else if (_lerpType == LerpType.Color)
+                {
+                    Color start = UnsafeUtility.As<T, Color>(ref Start);
+                    Color end = UnsafeUtility.As<T, Color>(ref End);
+                    Color result = Color.Lerp(start, end, t);
+                    UnsafeUtility.WriteArrayElement(Target, 0, result);
+                }
+                else if (_lerpType == LerpType.Vec2)
+                {
+                    Vector2 start = UnsafeUtility.As<T, Vector2>(ref Start);
+                    Vector2 end = UnsafeUtility.As<T, Vector2>(ref End);
+                    Vector2 result = Vector2.Lerp(start, end, t);
+                    UnsafeUtility.WriteArrayElement(Target, 0, result);
+                }
+                else if (_lerpType == LerpType.Vec3)
+                {
+                    Vector3 start = UnsafeUtility.As<T, Vector3>(ref Start);
+                    Vector3 end = UnsafeUtility.As<T, Vector3>(ref End);
+                    Vector3 result = Vector3.Lerp(start, end, t);
+                    UnsafeUtility.WriteArrayElement(Target, 0, result);
+                }
+                else if (_lerpType == LerpType.Vec4)
+                {
+                    Vector4 start = UnsafeUtility.As<T, Vector4>(ref Start);
+                    Vector4 end = UnsafeUtility.As<T, Vector4>(ref End);
+                    Vector4 result = Vector4.Lerp(start, end, t);
+                    UnsafeUtility.WriteArrayElement(Target, 0, result);
+                }
+                else if (_lerpType == LerpType.Quat)
+                {
+                    Quaternion start = UnsafeUtility.As<T, Quaternion>(ref Start);
+                    Quaternion end = UnsafeUtility.As<T, Quaternion>(ref End);
+                    Quaternion result = Quaternion.Lerp(start, end, t);
+                    UnsafeUtility.WriteArrayElement(Target, 0, result);
+                }
+
+                ElapsedTime += deltaTime;
             }
             if (ElapsedTime > Duration)
                 SetIsDone(true);
@@ -128,13 +183,6 @@ namespace Tickle.Lerp
     public static unsafe class LerpManager<T> where T : unmanaged
     {
         private static bool _hasSetup = false;
-        private static delegate*<T, T, float, T> _lerp;
-
-#if ENABLE_BURST
-        public enum LerpType { Float, Color, Vec2, Vec3, Vec4, Quat }
-        private static LerpType _lerpType;
-#endif
-        
         private static SparseSet<Lerp<T>> _processes;
 
         private static void Setup()
@@ -142,39 +190,8 @@ namespace Tickle.Lerp
             if (LerpRunner.Instance == null)
                 new GameObject("[LerpRunner]").AddComponent<LerpRunner>();
 
-            // TODO: Add more types here if needed
-            if (typeof(T) == typeof(float)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Float;
-            else if (typeof(T) == typeof(Color)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Colour;
-            else if (typeof(T) == typeof(Vector2)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Vec2;
-            else if (typeof(T) == typeof(Vector3)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Vec3;
-            else if (typeof(T) == typeof(Vector4)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Vec4;
-            else if (typeof(T) == typeof(Quaternion)) _lerp = (delegate*<T, T, float, T>)LerpFunc.Quat;
-
-#if ENABLE_BURST
-            if (typeof(T) == typeof(float)) _lerpType = LerpType.Float;
-            else if (typeof(T) == typeof(Color)) _lerpType = LerpType.Color;
-            else if (typeof(T) == typeof(Vector2)) _lerpType = LerpType.Vec2;
-            else if (typeof(T) == typeof(Vector3)) _lerpType = LerpType.Vec3;
-            else if (typeof(T) == typeof(Vector4)) _lerpType = LerpType.Vec4;
-            else if (typeof(T) == typeof(Quaternion)) _lerpType = LerpType.Quat;
-#endif
             _processes = new SparseSet<Lerp<T>>(64);
             _hasSetup = true;
-        }
-
-        private static bool TryGetProcess(int id, NativeArray<Lerp<T>> array, int count, ref Lerp<T> processRef)
-        {
-            Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(array);
-
-            for (int i = 0; i < count; i++)
-            {
-                if (ptr[i].Id == id)
-                {
-                    processRef = ptr[i];
-                    return true;
-                }
-            }
-            return false;
         }
 
         public static int Create(ref T target, ref bool doneHandle, T start, T end, float duration, Ease ease = Ease.None)
@@ -241,21 +258,17 @@ namespace Tickle.Lerp
             if (!_hasSetup) return;
             Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(_processes.GetDenseData());
             for (int i = 0; i < _processes.GetDataCount(); i++)
-                ptr[i].Update();
+                ptr[i].Update(Time.deltaTime);
         }
 
 #if ENABLE_BURST
-
         [BurstCompile]
         public static void BurstUpdateAll()
         {
-            var job = new LerpUpdateParallelJob() {
-                DeltaTime = Time.deltaTime,
-                Processes = _processes.GetDenseData(),
-                TypeLerp = _lerpType,
-            };
-            JobHandle handle = job.Schedule(_processes.GetDataCount(), _processes.GetDataCount());
-            handle.Complete();
+            var job = new LerpUpdateParallelJob();
+            job.DeltaTime = Time.deltaTime;
+            job.Processes = _processes.GetDenseData();
+            job.Schedule(_processes.GetDataCount(), _processes.GetDataCount()).Complete();
         }
 
         [BurstCompile]
@@ -264,70 +277,11 @@ namespace Tickle.Lerp
             [NativeDisableParallelForRestriction]
             public NativeArray<Lerp<T>> Processes;
             public float DeltaTime;
-            public LerpType TypeLerp;
 
             public void Execute(int i)
             {
-                Lerp<T> process = Processes[i];
-                if (!process.IsRunning || process.IsDone) return;
-
-                if (process.ElapsedTime <= process.Duration)
-                {
-                    float t = process.ElapsedTime / process.Duration;
-                    t = EaseFunctions.Apply(t, process.EaseType);
-
-                    // Directly write to target memory using the correct type
-                    if (TypeLerp == LerpType.Float)
-                    {
-                        float start = UnsafeUtility.ReadArrayElement<float>(&process.Start, 0);
-                        float end = UnsafeUtility.ReadArrayElement<float>(&process.End, 0);
-                        float result = math.lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
-                    }
-                    else if (TypeLerp == LerpType.Color)
-                    {
-                        Color start = UnsafeUtility.ReadArrayElement<Color>(&process.Start, 0);
-                        Color end = UnsafeUtility.ReadArrayElement<Color>(&process.End, 0);
-                        Color result = Color.Lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
-                    }
-                    else if (TypeLerp == LerpType.Vec2)
-                    {
-                        Vector2 start = UnsafeUtility.ReadArrayElement<Vector2>(&process.Start, 0);
-                        Vector2 end = UnsafeUtility.ReadArrayElement<Vector2>(&process.End, 0);
-                        Vector2 result = Vector2.Lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
-                    }
-                    else if (TypeLerp == LerpType.Vec3)
-                    {
-                        Vector3 start = UnsafeUtility.ReadArrayElement<Vector3>(&process.Start, 0);
-                        Vector3 end = UnsafeUtility.ReadArrayElement<Vector3>(&process.End, 0);
-                        Vector3 result = Vector3.Lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
-                    }
-                    else if (TypeLerp == LerpType.Vec4)
-                    {
-                        Vector4 start = UnsafeUtility.ReadArrayElement<Vector4>(&process.Start, 0);
-                        Vector4 end = UnsafeUtility.ReadArrayElement<Vector4>(&process.End, 0);
-                        Vector4 result = Vector4.Lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
-                    }
-                    else if (TypeLerp == LerpType.Quat)
-                    {
-                        Quaternion start = UnsafeUtility.ReadArrayElement<Quaternion>(&process.Start, 0);
-                        Quaternion end = UnsafeUtility.ReadArrayElement<Quaternion>(&process.End, 0);
-                        Quaternion result = Quaternion.Lerp(start, end, t);
-                        UnsafeUtility.WriteArrayElement(process.Target, 0, result);
-                    }
-
-                    process.ElapsedTime += DeltaTime;
-                }
-                if (process.ElapsedTime > process.Duration)
-                {
-                    process.SetIsDone(true);
-                }
-
-                Processes[i] = process;
+                Lerp<T>* ptr = (Lerp<T>*)NativeArrayUnsafeUtility.GetUnsafePtr(Processes);
+                ptr[i].Update(DeltaTime);
             }
         }
 #endif
@@ -338,23 +292,10 @@ namespace Tickle.Lerp
             _processes.Resize();
         }
 
-        public static T ApplyLerp(T a, T b, float t) => _lerp(a, b, t);
-        
-        private static unsafe class LerpFunc
-        {
-            // TODO: Add more types here if needed
-            public static delegate*<float, float, float, float> Float = &Mathf.Lerp;
-            public static delegate*<Color, Color, float, Color> Colour = &Color.Lerp;
-            public static delegate*<Vector2, Vector2, float, Vector2> Vec2 = &Vector2.Lerp;
-            public static delegate*<Vector3, Vector3, float, Vector3> Vec3 = &Vector3.Lerp;
-            public static delegate*<Vector4, Vector4, float, Vector4> Vec4 = &Vector4.Lerp;
-            public static delegate*<Quaternion, Quaternion, float, Quaternion> Quat = &Quaternion.Lerp;
-        }
-
         public static void Cleanup()
         {
-            if (_hasSetup)
-                _processes.Dispose();
+            if (!_hasSetup) return;
+            _processes.Dispose();
             _processes = default;
         }
     }
