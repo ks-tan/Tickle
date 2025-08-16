@@ -2,7 +2,7 @@ using Tickle;
 using Tickle.Easings;
 using UnityEngine;
 
-public unsafe class GameManager : MonoBehaviour
+public class GameManager : MonoBehaviour
 {
     [SerializeField] private GameObject _carPrefab;
 
