@@ -8,6 +8,7 @@ public class SampleTest1 : MonoBehaviour
 {
     [SerializeField] private GameObject _carPrefab;
     public int prefabCount;
+    private bool running = false;
 
     [Space]
     [Header("Animation Settings")]
@@ -39,7 +40,7 @@ public class SampleTest1 : MonoBehaviour
     public Ease colorEaseType;
 
     private List<GameObject> spawnedCars = new List<GameObject>();
-    private TickleChain currentAnimation = null;
+    private TickleChain[] animations = new TickleChain[] { };
 
     private void Start()
     {
@@ -75,46 +76,47 @@ public class SampleTest1 : MonoBehaviour
 
     private void PressPlay()
     {
-        if(Input.GetKeyDown(KeyCode.Space))
+        if (!Input.GetKeyDown(KeyCode.Space)) return;
+        bool wantRunning = !running;
+
+        for (int i = 0; i < spawnedCars.Count; i++)
         {
-            if (currentAnimation != null)
+            int idx = i;
+
+            if (animations[idx] == null)
             {
-                if (Time.timeScale == 0)
-                    Time.timeScale = 1;
-                else
-                    Time.timeScale = 0;
-                //currentAnimation.Stop();
+                Debug.Log("Started Tickle");
+                animations[idx] = BuildChainFor(spawnedCars[idx])
+                .OnComplete(() => {
+                    Debug.Log($"Chain complete, clearing {idx}");
+                    animations[idx] = null;
+                }); animations[idx].Start();
             }
             else
             {
-                for (int i = 0; i < spawnedCars.Count; i++)
-                {
-                    var set = new TickleSet()
-                        .Join(ScaleAnimation(spawnedCars[i]))
-                        .Join(PositionAnimation(spawnedCars[i]))
-                        .Join(RotationAnimation(spawnedCars[i]))
-                        .Join(ColorAnimation(spawnedCars[i]));
-                    var chain = new TickleChain()
-                        .Chain(ScaleAnimation(spawnedCars[i]))
-                        .Chain(PositionAnimation(spawnedCars[i]))
-                        .Chain(RotationAnimation(spawnedCars[i]))
-                        .Chain(ColorAnimation(spawnedCars[i]));
-                    if (animationSequence == AnimationSequence.Set)
-                    {
-                        currentAnimation = new TickleChain()
-                            .Chain(set)
-                            .OnComplete(() => currentAnimation = null);
-                    }
-                    else
-                    {
-                        currentAnimation = new TickleChain()
-                            .Chain(chain)
-                            .OnComplete(() => currentAnimation = null);
-                    }
-                    currentAnimation.Start();
-                }
+                Debug.Log("Pause Or Resume Pressed");
+                if (wantRunning) animations[idx].Resume();
+                else animations[idx].Pause();
             }
         }
+        running = wantRunning;
+    }
+    private TickleChain BuildChainFor(GameObject car)
+    {
+        var set = new TickleSet()
+            .Join(ScaleAnimation(car))
+            .Join(PositionAnimation(car))
+            .Join(RotationAnimation(car))
+            .Join(ColorAnimation(car));
+
+        if (animationSequence == AnimationSequence.Set)
+            return new TickleChain().Chain(set);
+
+        return new TickleChain()
+            .Chain(ScaleAnimation(car))
+            .Chain(PositionAnimation(car))
+            .Chain(RotationAnimation(car))
+            .Chain(ColorAnimation(car));
     }
 
     private TickleSet ScaleAnimation(GameObject car)
@@ -146,7 +148,7 @@ public class SampleTest1 : MonoBehaviour
         refColor = material.color;
         var endColor = color;
         return new TickleSet()
-            .Join(refColor.a.Lerp(refColor.a,endColor.a,animationDuration,colorEaseType))
+            .Join(refColor.a.Lerp(refColor.a, endColor.a, animationDuration, colorEaseType))
             .Join(refColor.r.Lerp(refColor.r, endColor.r, animationDuration, colorEaseType))
             .Join(refColor.g.Lerp(refColor.g, endColor.g, animationDuration, colorEaseType))
             .Join(refColor.b.Lerp(refColor.b, endColor.b, animationDuration, colorEaseType));
@@ -156,6 +158,7 @@ public class SampleTest1 : MonoBehaviour
     {
         var car = Instantiate(_carPrefab);
         spawnedCars.Add(car);
+        animations = new TickleChain[spawnedCars.Count];
         carMaterials.Add(car.GetComponent<MeshRenderer>()?.material);
 
         var neutralPos = Vector3.zero + position;

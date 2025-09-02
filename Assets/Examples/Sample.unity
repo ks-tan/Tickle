@@ -338,7 +338,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _carPrefab: {fileID: 5459804796051613326, guid: b5198272f09afca4b885e64a8953107a, type: 3}
-  prefabCount: 200
+  prefabCount: 2
   animationDuration: 1
   animationSequence: 1
   endScale: 3
