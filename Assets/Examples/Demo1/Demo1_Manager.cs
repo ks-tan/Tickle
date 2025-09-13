@@ -6,7 +6,7 @@ using UnityEngine;
 
 public class SampleTest1 : MonoBehaviour
 {
-    [SerializeField] private GameObject _carPrefab;
+    [SerializeField] private GameObject spawnObj;
     public int prefabCount;
     private bool running = false;
 
@@ -44,7 +44,7 @@ public class SampleTest1 : MonoBehaviour
 
     private void Start()
     {
-        if (prefabCount <= 0 || _carPrefab == null) return;
+        if (prefabCount <= 0 || spawnObj == null) return;
 
         int cols = Mathf.CeilToInt(Mathf.Sqrt(prefabCount));
         int rows = Mathf.CeilToInt((float)prefabCount / cols);
@@ -156,7 +156,8 @@ public class SampleTest1 : MonoBehaviour
 
     private void SpawnCar(Vector3 position)
     {
-        var car = Instantiate(_carPrefab);
+        var car = Instantiate(spawnObj);
+        car.SetActive(true);
         spawnedCars.Add(car);
         animations = new TickleChain[spawnedCars.Count];
         carMaterials.Add(car.GetComponent<MeshRenderer>()?.material);

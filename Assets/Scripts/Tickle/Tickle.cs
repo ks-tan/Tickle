@@ -145,9 +145,7 @@ namespace Tickle
         public TickleSet Start() 
         {
             for (int i = 0; i < _tickles.Length; i++)
-            {
                 _tickles[i].Start();
-            }
             return this;
         }
 
