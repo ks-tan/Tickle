@@ -242,6 +242,20 @@ namespace Tickle
                     _array[i][j].Stop();
         }
 
+        public void Pause()
+        {
+            for (int i = 0; i < _array.Length; i++)
+                for (int j = 0; j < _array[i].Length; j++)
+                    _array[i][j].Pause();
+        }
+
+        public void Resume()
+        {
+            for (int i = 0; i < _array.Length; i++)
+                for (int j = 0; j < _array[i].Length; j++)
+                    _array[i][j].Resume();
+        }
+
         public TickleChain OnComplete(Action onComplete)
         {
             _array[_array.Length - 1].OnComplete(onComplete);

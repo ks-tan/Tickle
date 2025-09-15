@@ -5,6 +5,7 @@ using UnityEngine;
 using Unity.Collections;
 using Tickle.Collections;
 
+
 #if ENABLE_BURST
 using Unity.Burst;
 using Unity.Jobs;
@@ -123,7 +124,7 @@ namespace Tickle.Lerp
         public void Update(float deltaTime)
         {
             if (!IsRunning || IsDone) return;
-            
+
             if (ElapsedTime <= Duration)
             {
                 float t = ElapsedTime / Duration;
